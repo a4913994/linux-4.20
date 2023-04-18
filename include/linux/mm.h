@@ -837,25 +837,33 @@ vm_fault_t finish_mkwrite_fault(struct vm_fault *vmf);
  * mappings of /dev/null, all processes see the same page full of
  * zeroes, and text pages of executables and shared libraries have
  * only one copy in memory, at most, normally.
+ * 多个进程可能会“看到”同一个页面。例如，对于未触及的 /dev/null 映射，所有进程看到的都是一个填满零的页面，
+ * 可执行文件和共享库的文本页面在内存中最多只有一份副本。
  *
  * For the non-reserved pages, page_count(page) denotes a reference count.
  *   page_count() == 0 means the page is free. page->lru is then used for
  *   freelist management in the buddy allocator.
  *   page_count() > 0  means the page has been allocated.
+ * 对于非保留页，page_count(page) 表示引用计数。当 page_count() == 0 时，表示该页是空闲的，此时 page->lru 
+ * 被用于伙伴分配器中的空闲页链表管理。当 page_count() > 0 时，表示该页已被分配使用。
  *
  * Pages are allocated by the slab allocator in order to provide memory
  * to kmalloc and kmem_cache_alloc. In this case, the management of the
  * page, and the fields in 'struct page' are the responsibility of mm/slab.c
  * unless a particular usage is carefully commented. (the responsibility of
  * freeing the kmalloc memory is the caller's, of course).
+ * 注释解释了页由slab分配器分配的情况。在这种情况下，页的管理和'struct page'中的字段由mm/slab.c负责
  *
- * A page may be used by anyone else who does a __get_free_page().
- * In this case, page_count still tracks the references, and should only
- * be used through the normal accessor functions. The top bits of page->flags
- * and page->virtual store page management information, but all other fields
- * are unused and could be used privately, carefully. The management of this
- * page is the responsibility of the one who allocated it, and those who have
- * subsequently been given references to it.
+  A page may be used by anyone else who does a __get_free_page().
+  In this case, page_count still tracks the references, and should only
+  be used through the normal accessor functions. The top bits of page->flags
+  and page->virtual store page management information, but all other fields
+  are unused and could be used privately, carefully. The management of this
+  page is the responsibility of the one who allocated it, and those who have
+  subsequently been given references to it.
+  页面可能被执行__get_free_page()的任何其他人使用。在这种情况下，page_count仍跟踪引用，并且只应通过正常的访问器函数使用。
+  page->flags和page->virtual的顶部位存储页面管理信息，但所有其他字段未使用，可以私有使用，但需要小心。
+  此页面的管理是分配它的人以及随后被引用的人的责任。
  *
  * The other pages (we may call them "pagecache pages") are completely
  * managed by the Linux memory manager: I/O, buffers, swapping etc.

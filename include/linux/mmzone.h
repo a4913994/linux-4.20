@@ -20,12 +20,20 @@
 #include <linux/atomic.h>
 #include <asm/page.h>
 
-/* Free memory management - zoned buddy allocator.  */
+/* Free memory management - zoned buddy allocator.  
+定义了内存管理子系统中使用的 buddy system 管理内存页的最大 order。
+buddy system 是一种用于内存碎片管理的算法，通过将内存分割成大小为 2 的整数次幂的块来工作。
+*/
+// 如果没有定义 CONFIG_FORCE_MAX_ZONEORDER，则 MAX_ORDER 被设置为 11。这意味着最大的内存块将是 2^(11-1) 个连续的页面。
 #ifndef CONFIG_FORCE_MAX_ZONEORDER
 #define MAX_ORDER 11
 #else
+// 如果定义了 CONFIG_FORCE_MAX_ZONEORDER，则 MAX_ORDER 被设置为 CONFIG_FORCE_MAX_ZONEORDER 的值。
+// 这允许系统管理员或内核构建配置强制指定一个不同的最大 order 值。
 #define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
 #endif
+// MAX_ORDER_NR_PAGES 被定义为 (1 << (MAX_ORDER - 1))，它表示最大 order 对应的连续页面数 
+// 对于默认的 MAX_ORDER 值 11，MAX_ORDER_NR_PAGES 将是 2^(11-1) = 1024 个页面。
 #define MAX_ORDER_NR_PAGES (1 << (MAX_ORDER - 1))
 
 /*
@@ -34,13 +42,24 @@
  * coalesce naturally under reasonable reclaim pressure and those which
  * will not.
  */
+// 表示内存分配器在执行更昂贵的内存分配操作之前的阈值。具体来说，这个阈值用于确定何时需要执行内存回收操作来满足内存分配请求。
+// #define PAGE_ALLOC_COSTLY_ORDER 3 表示当内存分配器收到一个 order 大于或等于 3 的分配请求时，内存回收操作可能被触发。
+// 换句话说，当请求的连续内存页面数量大于或等于 2^(3-1) = 4 个页面时，内核可能会执行内存回收。
+
+// 内存回收是一种用于在内存紧张情况下释放被占用的内存资源的机制。当系统内存紧张时，内核会尝试回收尽可能多的内存以满足内存分配请求。这包括回收缓存、交换出不活跃的页面等操作。当然，这些操作会增加内存分配的成本，因为它们涉及到更多的内存管理操作。
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
+// 它表示 Linux 内核中不同类型的内存迁移策略。内存迁移类型用于区分系统中不同类型的内存页，以便于内核能够根据需求对内存进行分配和管理。
 enum migratetype {
+	// MIGRATE_UNMOVABLE：表示不可移动的内存页，例如内核数据结构、模块等，这些页面通常不会被释放。
 	MIGRATE_UNMOVABLE,
+	// MIGRATE_MOVABLE：表示可移动的内存页，例如用户空间进程的内存。当内存紧张时，这些页面可以被交换出或者移动到其他位置。
 	MIGRATE_MOVABLE,
+	// MIGRATE_RECLAIMABLE：表示可回收的内存页，例如文件系统缓存。当内存紧张时，这些页面可以被回收或者移动。
 	MIGRATE_RECLAIMABLE,
+	// MIGRATE_PCPTYPES：表示 per-CPU 页面的类型数量，它实际上是一个计数器，用于统计可用于 per-CPU 页面的迁移类型。
 	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
+	// MIGRATE_HIGHATOMIC：表示高原子性操作的内存页，这些页面用于高优先级的内核操作，例如中断处理。
 	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
 #ifdef CONFIG_CMA
 	/*
@@ -56,18 +75,24 @@ enum migratetype {
 	 * MAX_ORDER_NR_PAGES should biggest page be bigger then
 	 * a single pageblock.
 	 */
+	// MIGRATE_CMA（仅在启用了 CONFIG_CMA 时）：表示 Contiguous Memory Allocator（连续内存分配器）的内存页，用于为需要连续物理内存的设备分配内存。
 	MIGRATE_CMA,
 #endif
 #ifdef CONFIG_MEMORY_ISOLATION
+	// MIGRATE_ISOLATE（仅在启用了 CONFIG_MEMORY_ISOLATION 时）：表示被隔离的内存页，这些页面无法用于内存分配。
 	MIGRATE_ISOLATE,	/* can't allocate from here */
 #endif
+	// MIGRATE_TYPES 表示迁移类型的总数。这个值可用于数组大小的声明或其他需要知道迁移类型数量的情景。
 	MIGRATE_TYPES
 };
 
 /* In mm/page_alloc.c; keep in sync also with show_migration_types() there */
+// 该数组用于存储与前面提到的 migratetype 枚举类型相对应的名称。这使得内核可以方便地将 migratetype 的值转换为易于理解的字符串，以便于调试和日志记录。
 extern char * const migratetype_names[MIGRATE_TYPES];
 
 #ifdef CONFIG_CMA
+// 检查给定的内存迁移类型或内存页是否属于 Contiguous Memory Allocator（CMA，连续内存分配器）类别。
+// CMA 用于分配连续的物理内存，通常用于 DMA（Direct Memory Access，直接内存访问）设备或其他需要连续物理内存的硬件设备
 #  define is_migrate_cma(migratetype) unlikely((migratetype) == MIGRATE_CMA)
 #  define is_migrate_cma_page(_page) (get_pageblock_migratetype(_page) == MIGRATE_CMA)
 #else
@@ -93,11 +118,18 @@ extern int page_group_by_mobility_disabled;
 	get_pfnblock_flags_mask(page, page_to_pfn(page),		\
 			PB_migrate_end, MIGRATETYPE_MASK)
 
+// free_area 结构定义了一个用于表示内存空闲区域的数据结构。Linux 内核使用这个结构来跟踪和管理物理内存中空闲的连续页面块。
+// 这个结构在 buddy system 内存分配器中使用，该分配器负责将连续的页面分组成 2 的整数次幂大小的块，以减少内存碎片和提高分配效率。
+// 在内核中，每个内存域（memory zone）都会维护一个 free_area 结构数组，数组的大小等于 MAX_ORDER。每个数组元素表示具有相应 order 大小的空闲内存块。
+// 例如，free_area[0] 表示大小为 1 个页面的空闲内存块，而 free_area[MAX_ORDER - 1] 表示大小为 MAX_ORDER_NR_PAGES 个页面的空闲内存块。
+// 这样，内核可以快速找到满足特定大小和迁移类型要求的空闲页面。
 struct free_area {
+	// 每个链表头表示一个迁移类型（如 MIGRATE_UNMOVABLE、MIGRATE_MOVABLE 等），并维护着相应类型的空闲页面列表。
 	struct list_head	free_list[MIGRATE_TYPES];
+	// nr_free：一个无符号长整型，表示当前空闲区域中空闲页面的数量。
 	unsigned long		nr_free;
 };
-
+// Numa 内存节点的数据结构
 struct pglist_data;
 
 /*
@@ -105,6 +137,12 @@ struct pglist_data;
  * So add a wild amount of padding here to ensure that they fall into separate
  * cachelines.  There are very few zone structures in the machine, so space
  * consumption is not a concern here.
+ * 只在多处理器（SMP，Symmetric Multi-Processing）系统中使用。
+ * 它的目的是在多处理器系统中确保struct zone结构体的某些字段对齐于不同处理器节点之间的缓存行，以减少伪共享（False Sharing）现象。
+ * 
+ * 伪共享是指多个处理器访问同一缓存行中的不同数据时可能导致性能下降的现象。伪共享会导致处理器之间的缓存行失效，从而增加内存访问延迟。
+ * 
+ * ZONE_PADDING(name)宏用于在struct zone结构体中插入填充，以确保多处理器系统中的结构体字段对齐于不同处理器节点之间的缓存行。在非多处理器系统中，ZONE_PADDING(name)宏什么也不做。
  */
 #if defined(CONFIG_SMP)
 struct zone_padding {
@@ -116,73 +154,133 @@ struct zone_padding {
 #endif
 
 #ifdef CONFIG_NUMA
+/*
+enum numa_stat_item定义了一组用于追踪NUMA（Non-Uniform Memory Access，非统一内存访问）相关统计信息的指标。
+在NUMA系统中，内存访问时间取决于访问的内存位置相对于处理器的位置
+*/
 enum numa_stat_item {
+	// NUMA_HIT：在期望的节点上分配内存。
 	NUMA_HIT,		/* allocated in intended node */
+	// NUMA_MISS：在非期望的节点上分配内存。
 	NUMA_MISS,		/* allocated in non intended node */
+	// NUMA_FOREIGN：本应在此节点上分配，但实际上在其他地方分配。
 	NUMA_FOREIGN,		/* was intended here, hit elsewhere */
+	// NUMA_INTERLEAVE_HIT：内存交织策略优先选择了这个内存区域。
 	NUMA_INTERLEAVE_HIT,	/* interleaver preferred this zone */
+	// NUMA_LOCAL：从本地节点分配内存。
 	NUMA_LOCAL,		/* allocation from local node */
+	// NUMA_OTHER：从其他节点分配内存。
 	NUMA_OTHER,		/* allocation from other node */
+	// NR_VM_NUMA_STAT_ITEMS表示这个枚举中的项目数量。这个值可以用于定义存储这些统计数据的数组。
 	NR_VM_NUMA_STAT_ITEMS
 };
 #else
 #define NR_VM_NUMA_STAT_ITEMS 0
 #endif
 
+// enum zone_stat_item定义了一组用于追踪内存区域（zone）相关统计信息的指标
 enum zone_stat_item {
 	/* First 128 byte cacheline (assuming 64 bit words) */
+	// NR_FREE_PAGES：可用的空闲页面数量。
 	NR_FREE_PAGES,
+	// NR_ZONE_LRU_BASE：仅用于内存压缩和回收重试的基础值。
 	NR_ZONE_LRU_BASE, /* Used only for compaction and reclaim retry */
+	// NR_ZONE_INACTIVE_ANON：非活动匿名页面数量。
 	NR_ZONE_INACTIVE_ANON = NR_ZONE_LRU_BASE,
+	// NR_ZONE_ACTIVE_ANON：活动匿名页面数量。
 	NR_ZONE_ACTIVE_ANON,
+	// NR_ZONE_INACTIVE_FILE：非活动文件页面数量。
 	NR_ZONE_INACTIVE_FILE,
+	// NR_ZONE_ACTIVE_FILE：活动文件页面数量。
 	NR_ZONE_ACTIVE_FILE,
+	// NR_ZONE_UNEVICTABLE：不可回收页面数量。
 	NR_ZONE_UNEVICTABLE,
+	// NR_ZONE_WRITE_PENDING：脏页、回写页和不稳定页的数量。
 	NR_ZONE_WRITE_PENDING,	/* Count of dirty, writeback and unstable pages */
+	// NR_MLOCK：通过mlock()锁定并从LRU列表中移除的页面数量。
 	NR_MLOCK,		/* mlock()ed pages found and moved off LRU */
+	// NR_PAGETABLE：用于页表的页面数量。
 	NR_PAGETABLE,		/* used for pagetables */
+	// NR_KERNEL_STACK_KB：内核栈的大小，以KiB为单位。
 	NR_KERNEL_STACK_KB,	/* measured in KiB */
+	// NR_BOUNCE：用于I/O操作的bounce buffer页面数量。
 	/* Second 128 byte cacheline */
 	NR_BOUNCE,
 #if IS_ENABLED(CONFIG_ZSMALLOC)
+	// NR_ZSPAGES（如果启用了CONFIG_ZSMALLOC）：在zsmalloc中分配的页面数量。
 	NR_ZSPAGES,		/* allocated in zsmalloc */
 #endif
+	// NR_FREE_CMA_PAGES：可用的连续内存分配（CMA）页面数量。
 	NR_FREE_CMA_PAGES,
+	// NR_VM_ZONE_STAT_ITEMS表示这个枚举中的项目数量。这个值可以用于定义存储这些统计数据的数组。
 	NR_VM_ZONE_STAT_ITEMS };
 
+// enum node_stat_item定义了一组用于追踪内存节点（node）相关统计信息的指标
 enum node_stat_item {
+	// NR_LRU_BASE：基本LRU指标。
 	NR_LRU_BASE,
+	// NR_INACTIVE_ANON：非活动匿名页面数量。
 	NR_INACTIVE_ANON = NR_LRU_BASE, /* must match order of LRU_[IN]ACTIVE */
+	// NR_ACTIVE_ANON：活动匿名页面数量。
 	NR_ACTIVE_ANON,		/*  "     "     "   "       "         */
+	// NR_INACTIVE_FILE：非活动文件页面数量。
 	NR_INACTIVE_FILE,	/*  "     "     "   "       "         */
+	// NR_ACTIVE_FILE：活动文件页面数量。
 	NR_ACTIVE_FILE,		/*  "     "     "   "       "         */
+	// NR_UNEVICTABLE：不可回收页面数量。
 	NR_UNEVICTABLE,		/*  "     "     "   "       "         */
+	// NR_SLAB_RECLAIMABLE：可回收的SLAB页面数量。
 	NR_SLAB_RECLAIMABLE,
+	// NR_SLAB_UNRECLAIMABLE：不可回收的SLAB页面数量。
 	NR_SLAB_UNRECLAIMABLE,
+	// NR_ISOLATED_ANON：暂时从匿名LRU列表中隔离的页面数量。
 	NR_ISOLATED_ANON,	/* Temporary isolated pages from anon lru */
+	// NR_ISOLATED_FILE：暂时从文件LRU列表中隔离的页面数量。
 	NR_ISOLATED_FILE,	/* Temporary isolated pages from file lru */
+	// WORKINGSET_NODES：工作集节点数量。
 	WORKINGSET_NODES,
+	// WORKINGSET_REFAULT：工作集重新发生错误的数量。
 	WORKINGSET_REFAULT,
+	// WORKINGSET_ACTIVATE：工作集激活次数。
 	WORKINGSET_ACTIVATE,
+	// WORKINGSET_RESTORE：工作集还原次数。
 	WORKINGSET_RESTORE,
+	// WORKINGSET_NODERECLAIM：工作集节点回收次数。
 	WORKINGSET_NODERECLAIM,
+	// NR_ANON_MAPPED：已映射的匿名页面数量。
 	NR_ANON_MAPPED,	/* Mapped anonymous pages */
+	// NR_FILE_MAPPED：已映射到页表的缓存页面数量（仅在进程上下文中修改）。
 	NR_FILE_MAPPED,	/* pagecache pages mapped into pagetables.
 			   only modified from process context */
+	// NR_FILE_PAGES：文件页面数量。
 	NR_FILE_PAGES,
+	// NR_FILE_DIRTY：脏文件页面数量。
 	NR_FILE_DIRTY,
+	// NR_WRITEBACK：回写页面数量。
 	NR_WRITEBACK,
+	// NR_WRITEBACK_TEMP：使用临时缓冲区回写的页面数量。
 	NR_WRITEBACK_TEMP,	/* Writeback using temporary buffers */
+	// NR_SHMEM：共享内存页面数量（包括tmpfs/GEM页面）。
 	NR_SHMEM,		/* shmem pages (included tmpfs/GEM pages) */
+	// NR_SHMEM_THPS：共享内存的大页面（THP）数量。
 	NR_SHMEM_THPS,
+	// NR_SHMEM_PMDMAPPED：共享内存的PMD映射页面数量。
 	NR_SHMEM_PMDMAPPED,
+	// NR_ANON_THPS：匿名的大页面（THP）数量。
 	NR_ANON_THPS,
+	// NR_UNSTABLE_NFS：NFS不稳定页面数量。
 	NR_UNSTABLE_NFS,	/* NFS unstable pages */
+	// NR_VMSCAN_WRITE：虚拟内存扫描写入次数。
 	NR_VMSCAN_WRITE,
+	// NR_VMSCAN_IMMEDIATE：在回写结束时优先回收。
 	NR_VMSCAN_IMMEDIATE,	/* Prioritise for reclaim when writeback ends */
+	// NR_DIRTIED：自系统启动以来页面脏次数。
 	NR_DIRTIED,		/* page dirtyings since bootup */
+	// NR_WRITTEN：自系统启动以来页面写入次数。
 	NR_WRITTEN,		/* page writings since bootup */
+	// NR_KERNEL_MISC_RECLAIMABLE：可回收的非slab内核页面数量。
 	NR_KERNEL_MISC_RECLAIMABLE,	/* reclaimable non-slab kernel pages */
+	// NR_VM_NODE_STAT_ITEMS表示这个枚举中的项目数量
 	NR_VM_NODE_STAT_ITEMS
 };
 
@@ -199,12 +297,19 @@ enum node_stat_item {
 #define LRU_ACTIVE 1
 #define LRU_FILE 2
 
+// lru_list定义了一个枚举类型，表示内存中的各种最近最少使用（Least Recently Used, LRU）页面列表
 enum lru_list {
+	// LRU_INACTIVE_ANON：非活动匿名页面列表。这些页面不经常使用，可能会被换出到交换区。
 	LRU_INACTIVE_ANON = LRU_BASE,
+	// LRU_ACTIVE_ANON：活动匿名页面列表。这些页面经常使用，可能会被换出到交换区。
 	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
+	// LRU_INACTIVE_FILE：非活动文件页面列表。这些页面对应不经常使用的文件缓存，可能会被回收。
 	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
+	// LRU_ACTIVE_FILE：活动文件页面列表。这些页面对应经常使用的文件缓存，不太可能被回收。
 	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
+	// LRU_UNEVICTABLE：不可回收页面列表。这些页面因为某种原因不能被换出或回收。
 	LRU_UNEVICTABLE,
+	// NR_LRU_LISTS表示这个枚举中的列表数量
 	NR_LRU_LISTS
 };
 
@@ -222,6 +327,8 @@ static inline int is_active_lru(enum lru_list lru)
 	return (lru == LRU_ACTIVE_ANON || lru == LRU_ACTIVE_FILE);
 }
 
+// struct zone_reclaim_stat 结构体用于跟踪内存区域（zone）回收统计信息
+// 通过比较 recent_rotated 和 recent_scanned 的比例，可以评估缓存的价值。较高的旋转/扫描比率表示该缓存更有价值。
 struct zone_reclaim_stat {
 	/*
 	 * The pageout code in vmscan.c keeps track of how many of the
@@ -231,18 +338,27 @@ struct zone_reclaim_stat {
 	 *
 	 * The anon LRU stats live in [0], file LRU stats in [1]
 	 */
+	// recent_rotated：一个包含两个元素的数组，用于存储最近从LRU列表中旋转（重新激活）的页面数量。recent_rotated[0] 用于跟踪内存/交换空间支持的匿名页面，recent_rotated[1] 用于跟踪文件支持的页面。
 	unsigned long		recent_rotated[2];
+	// recent_scanned：一个包含两个元素的数组，用于存储最近从LRU列表中扫描的页面数量。recent_scanned[0] 用于跟踪内存/交换空间支持的匿名页面，recent_scanned[1] 用于跟踪文件支持的页面。
 	unsigned long		recent_scanned[2];
 };
 
+// struct lruvec 结构体表示一组LRU（Least Recently Used，最近最少使用）列表，用于跟踪不同类型的内存页面。
+// struct lruvec 结构体的主要目的是组织和管理内存页面，以便根据其最近的使用情况进行回收。
 struct lruvec {
+	// lists：一个包含 NR_LRU_LISTS 个元素的数组，每个元素都是一个 list_head 类型的结构体。数组中的每个元素表示一个不同类型的LRU列表（例如，活动/非活动匿名页面和活动/非活动文件页面）。
 	struct list_head		lists[NR_LRU_LISTS];
+	// reclaim_stat：一个 zone_reclaim_stat 类型的结构体，用于跟踪与该LRU向量相关的区域回收统计信息。
 	struct zone_reclaim_stat	reclaim_stat;
 	/* Evictions & activations on the inactive file list */
+	// inactive_age：一个原子长整型变量，表示在非活动文件列表上进行的驱逐和激活操作的计数。
 	atomic_long_t			inactive_age;
 	/* Refaults at the time of last reclaim cycle */
+	// refaults：一个无符号长整型变量，表示上一次回收周期时的重新故障（refault）次数。
 	unsigned long			refaults;
 #ifdef CONFIG_MEMCG
+	// pglist_data *pgdat：当配置了内存控制组（CONFIG_MEMCG）时，这是一个指向 pglist_data 结构体的指针，表示与此LRU向量相关的内存节点。
 	struct pglist_data *pgdat;
 #endif
 };
@@ -273,23 +389,35 @@ enum zone_watermarks {
 #define low_wmark_pages(z) (z->watermark[WMARK_LOW])
 #define high_wmark_pages(z) (z->watermark[WMARK_HIGH])
 
+// struct per_cpu_pages 结构体的主要目的是跟踪和管理每个CPU上的高速缓存页面，以便在需要时快速分配和回收内存
 struct per_cpu_pages {
+	// count：一个整型变量，表示列表中页面的数量。
 	int count;		/* number of pages in the list */
+	// high：一个整型变量，表示高水位线。当页面数量达到高水位线时，需要将页面归还到伙伴系统（buddy system）以腾出空间。
 	int high;		/* high watermark, emptying needed */
+	// batch：一个整型变量，表示伙伴系统（buddy system）添加/删除页面时的块大小。
 	int batch;		/* chunk size for buddy add/remove */
 
 	/* Lists of pages, one per migrate type stored on the pcp-lists */
+	// lists：一个包含 MIGRATE_PCPTYPES 个元素的数组，每个元素都是一个 list_head 类型的结构体。数组中的每个元素表示一个不同迁移类型的页面列表。
 	struct list_head lists[MIGRATE_PCPTYPES];
 };
 
+// struct per_cpu_pageset 结构体表示每个CPU上的页面集（pageset），用于跟踪每个CPU的高速缓存页面以及相关的统计信息。
+// 这有助于提高内存分配性能，因为每个CPU可以独立管理其本地高速缓存页面，而无需在多个CPU之间进行同步
 struct per_cpu_pageset {
+	// pcp：一个 struct per_cpu_pages 类型的变量，表示每个CPU的高速缓存页面列表信息。
 	struct per_cpu_pages pcp;
 #ifdef CONFIG_NUMA
+	// expire (只在 CONFIG_NUMA 定义时存在)：一个8位有符号整数，用于标识节点相关的到期时间。这通常用于NUMA（Non-Uniform Memory Access）架构中，以便在到期时调整节点之间的内存平衡。
 	s8 expire;
+	// vm_numa_stat_diff (只在 CONFIG_NUMA 定义时存在)：一个包含 NR_VM_NUMA_STAT_ITEMS 个元素的无符号16位整数数组，用于跟踪与NUMA相关的虚拟内存统计信息差异。
 	u16 vm_numa_stat_diff[NR_VM_NUMA_STAT_ITEMS];
 #endif
 #ifdef CONFIG_SMP
+	// stat_threshold (只在 CONFIG_SMP 定义时存在)：一个8位有符号整数，用于表示在更新全局统计信息之前需要累积的本地统计信息差异的阈值。这有助于减少在多处理器系统中更新全局统计信息时的同步开销。
 	s8 stat_threshold;
+	// vm_stat_diff (只在 CONFIG_SMP 定义时存在)：一个包含 NR_VM_ZONE_STAT_ITEMS 个元素的8位有符号整数数组，用于跟踪与虚拟内存区域（zone）相关的统计信息差异。
 	s8 vm_stat_diff[NR_VM_ZONE_STAT_ITEMS];
 #endif
 };
@@ -301,6 +429,7 @@ struct per_cpu_nodestat {
 
 #endif /* !__GENERATING_BOUNDS.H */
 
+// zone_type 枚举定义了内核中可用的内存区域（zone）类型
 enum zone_type {
 #ifdef CONFIG_ZONE_DMA
 	/*
@@ -321,6 +450,8 @@ enum zone_type {
 	 * i386, x86_64 and multiple other arches
 	 * 			<16M.
 	 */
+	// ZONE_DMA (仅在 CONFIG_ZONE_DMA 定义时存在): 用于那些无法对所有可寻址内存执行DMA的设备。
+	// 这个区域包含了这些设备所需的内存部分。其范围是特定于架构的，例如，对于parisc、ia64、sparc架构，它的限制是小于4GB。
 	ZONE_DMA,
 #endif
 #ifdef CONFIG_ZONE_DMA32
@@ -329,6 +460,8 @@ enum zone_type {
 	 * only able to do DMA to the lower 16M but also 32 bit devices that
 	 * can only do DMA areas below 4G.
 	 */
+	// ZONE_DMA32 (仅在 CONFIG_ZONE_DMA32 定义时存在): x86_64架构需要两个ZONE_DMA，
+	// 因为它支持仅能对低16M内存执行DMA的设备，也支持仅能对低4G内存执行DMA的32位设备。
 	ZONE_DMA32,
 #endif
 	/*
@@ -336,6 +469,7 @@ enum zone_type {
 	 * performed on pages in ZONE_NORMAL if the DMA devices support
 	 * transfers to all addressable memory.
 	 */
+	// ZONE_NORMAL: 正常可寻址内存位于ZONE_NORMAL。如果DMA设备支持对所有可寻址内存进行传输，可以在ZONE_NORMAL中执行DMA操作。
 	ZONE_NORMAL,
 #ifdef CONFIG_HIGHMEM
 	/*
@@ -346,10 +480,14 @@ enum zone_type {
 	 * table entries on i386) for each page that the kernel needs to
 	 * access.
 	 */
+	// ZONE_HIGHMEM (仅在 CONFIG_HIGHMEM 定义时存在): 内核只能通过将部分区域映射到其自身地址空间来寻址的内存区域。
+	// 例如，i386使用这个区域使内核能够寻址超过900MB的内存。对于每个内核需要访问的页面，内核会为其设置特殊映射（如i386上的页表条目）。
 	ZONE_HIGHMEM,
 #endif
+	// ZONE_MOVABLE: 用于可移动页的内存区域。这些页可以在物理内存中迁移，以便在需要时收回和重新分配内存。
 	ZONE_MOVABLE,
 #ifdef CONFIG_ZONE_DEVICE
+	// ZONE_DEVICE (仅在 CONFIG_ZONE_DEVICE 定义时存在): 用于设备专用内存的区域。这些区域包含了与特定硬件设备关联的内存，例如GPU或其他加速器设备。
 	ZONE_DEVICE,
 #endif
 	__MAX_NR_ZONES
@@ -358,12 +496,31 @@ enum zone_type {
 
 #ifndef __GENERATING_BOUNDS_H
 
+// struct zone 结构体描述了一个内存区域，用于表示系统内存分布的不同区域（如 DMA、DMA32、Normal 和 HighMem）。
+// 这个结构体包含了有关区域内存使用情况的详细信息，包括空闲内存块、各种内存阈值和统计信息
+/*
+水位标记（Watermarks）：水位标记用于确定区域内存的使用情况。有三个主要的水位标记：低水位（WMARK_LOW）、高水位（WMARK_HIGH）和最小水位（WMARK_MIN）。内存分配器根据当前内存使用量和这些水位标记来决定是否需要进行内存回收。
+
+迁移类型（Migratetype）：迁移类型用于追踪页面在内存中的迁移行为。不同的迁移类型表示不同的页面分配策略，例如，MIGRATE_UNMOVABLE 表示不可移动的页面，MIGRATE_MOVABLE 表示可移动的页面，MIGRATE_RECLAIMABLE 表示可回收的页面等。
+
+伙伴系统（Buddy System）：伙伴系统是 Linux 内核用于管理物理内存的一种算法。伙伴系统将物理内存分成大小为 2 的幂次方的块。每个 order 对应一种大小的块，例如 order 0 对应大小为 1 页的块，order 1 对应大小为 2 页的块，依此类推。free_area[MAX_ORDER]数组表示不同 order 的空闲内存块列表。
+
+内存回收（Memory Reclaim）：内存回收是在内存压力较大时释放内存的过程。当内存使用量接近水位标记时，内核将触发内存回收过程，以回收不再使用的内存页。
+
+内存紧凑（Memory Compaction）：内存紧凑是一种优化内存布局的过程，目的是将空闲内存页聚集在一起，从而提供足够大的连续内存块以满足大内存分配需求。紧凑性操作涉及到迁移页面，以便将相邻的空闲页面组合成更大的连续内存块。
+
+内存热插拔（Memory Hotplug）：内存热插拔是指在系统运行过程中动态添加或删除物理内存。内存热插拔需要对 struct zone 结构体中的一些字段进行保护，以确保在内存热插拔操作过程中不会发生数据不一致。
+
+NUMA（Non-Uniform Memory Access）：NUMA 是一种内存架构，用于解决多处理器系统中的内存访问延迟问题。在 NUMA 架构中，不同的处理器有自己的本地内存，而且可以访问其他处理器的远程内存。NUMA 系统中的内存访问延
+*/
 struct zone {
 	/* Read-mostly fields */
 
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
+	// watermark[NR_WMARK]：表示区域的水位标记，用于确定区域内存的使用情况。这些水位标记用于控制内存分配器的行为和内存回收策略。
 	unsigned long watermark[NR_WMARK];
 
+	// nr_reserved_highatomic：表示为高原子性操作保留的页面数。
 	unsigned long nr_reserved_highatomic;
 
 	/*
@@ -375,12 +532,16 @@ struct zone {
 	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
 	 * changes.
 	 */
+	// lowmem_reserve[MAX_NR_ZONES]：表示为低内存区域预留的内存。
 	long lowmem_reserve[MAX_NR_ZONES];
 
 #ifdef CONFIG_NUMA
+	// node：表示所属的 NUMA 节点。
 	int node;
 #endif
+	// zone_pgdat：指向与区域关联的 pglist_data 结构体。
 	struct pglist_data	*zone_pgdat;
+	// pageset：表示每个 CPU 的页面集。
 	struct per_cpu_pageset __percpu *pageset;
 
 #ifndef CONFIG_SPARSEMEM
@@ -388,10 +549,12 @@ struct zone {
 	 * Flags for a pageblock_nr_pages block. See pageblock-flags.h.
 	 * In SPARSEMEM, this map is stored in struct mem_section
 	 */
+	// pageblock_flags：表示用于跟踪页面块迁移类型的标志。
 	unsigned long		*pageblock_flags;
 #endif /* CONFIG_SPARSEMEM */
 
 	/* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
+	// zone_start_pfn：表示区域开始的 PFN（页帧号）。
 	unsigned long		zone_start_pfn;
 
 	/*
@@ -435,10 +598,14 @@ struct zone {
 	 * adjust_managed_page_count() should be used instead of directly
 	 * touching zone->managed_pages and totalram_pages.
 	 */
+	// managed_pages：表示由伙伴系统管理的页面数。
 	unsigned long		managed_pages;
+	// spanned_pages：表示区域跨越的页面总数，包括空洞。
 	unsigned long		spanned_pages;
+	// present_pages：表示区域内存在的物理页面数。
 	unsigned long		present_pages;
 
+	// name：表示区域的名称。
 	const char		*name;
 
 #ifdef CONFIG_MEMORY_ISOLATION
@@ -447,26 +614,30 @@ struct zone {
 	 * freepage counting problem due to racy retrieving migratetype
 	 * of pageblock. Protected by zone->lock.
 	 */
+	// nr_isolate_pageblock：表示已隔离的页面块数。
 	unsigned long		nr_isolate_pageblock;
 #endif
 
 #ifdef CONFIG_MEMORY_HOTPLUG
 	/* see spanned/present_pages for more description */
+	// span_seqlock：用于保护 zone_start_pfn 和 spanned_pages 的顺序锁。
 	seqlock_t		span_seqlock;
 #endif
-
+	// initialized：表示区域是否已初始化。
 	int initialized;
 
 	/* Write-intensive fields used from the page allocator */
 	ZONE_PADDING(_pad1_)
-
+	// free_area[MAX_ORDER]：表示不同大小的空闲区域。
 	/* free areas of different sizes */
 	struct free_area	free_area[MAX_ORDER];
 
 	/* zone flags, see below */
+	// flags：表示区域的标志。
 	unsigned long		flags;
 
 	/* Primarily protects free_area */
+	// lock：表示主要用于保护 free_area 的自旋锁。
 	spinlock_t		lock;
 
 	/* Write-intensive fields used by compaction and vmstats. */
@@ -477,10 +648,12 @@ struct zone {
 	 * when reading the number of free pages to avoid per-cpu counter
 	 * drift allowing watermarks to be breached
 	 */
+	// percpu_drift_mark：表示当空闲页面低于此值时，在读取空闲页面数量时需要采取额外措施，以避免每个 CPU 计数器漂移导致的水印泄露。
 	unsigned long percpu_drift_mark;
 
 #if defined CONFIG_COMPACTION || defined CONFIG_CMA
 	/* pfn where compaction free scanner should start */
+	// compact_cached_free_pfn 和 compact_cached_migrate_pfn：用于紧凑性扫描的起始 PFN。
 	unsigned long		compact_cached_free_pfn;
 	/* pfn where async and sync compaction migration scanner should start */
 	unsigned long		compact_cached_migrate_pfn[2];
@@ -492,20 +665,28 @@ struct zone {
 	 * are skipped before trying again. The number attempted since
 	 * last failure is tracked with compact_considered.
 	 */
+	/*
+	内存紧凑（Memory Compaction）：内存紧凑是一种优化内存布局的过程，目的是将空闲内存页聚集在一起，
+	从而提供足够大的连续内存块以满足大内存分配需求。紧凑性操作涉及到迁移页面，以便将相邻的空闲页面组合成更大的连续内存块。
+	*/
+	// compact_considered 和 compact_defer_shift：用于紧凑性失败时的重试策略。
 	unsigned int		compact_considered;
 	unsigned int		compact_defer_shift;
+	// compact_order_failed：表示上次紧凑性尝试失败的 order。
 	int			compact_order_failed;
 #endif
 
 #if defined CONFIG_COMPACTION || defined CONFIG_CMA
 	/* Set to true when the PG_migrate_skip bits should be cleared */
+	// compact_blockskip_flush：表示是否应清除 PG_migrate_skip 位。
 	bool			compact_blockskip_flush;
 #endif
-
+	// contiguous：表示内存是否连续。
 	bool			contiguous;
 
 	ZONE_PADDING(_pad3_)
 	/* Zone statistics */
+	// vm_stat[NR_VM_ZONE_STAT_ITEMS] 和 vm_numa_stat[NR_VM_NUMA_STAT_ITEMS]：表示区域统计信息。
 	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];
 	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
 } ____cacheline_internodealigned_in_smp;
@@ -623,13 +804,25 @@ extern struct page *mem_map;
  * per-zone basis.
  */
 struct bootmem_data;
+/*
+pglist_data 结构（通常简称为 pg_data_t）是 Linux 内核中用于表示内存节点（NUMA节点）的数据结构。
+每个 NUMA 节点包含一组内存域（zones，如 DMA、Normal、HighMem 等），这些内存域被用于不同类型的内存分配。
+pg_data_t 结构包含了关于节点中的内存域、可用内存和相关内核线程等信息。
+
+在 UMA（Uniform Memory Access，统一内存访问）系统中，通常只有一个 pg_data_t 实例，因为整个系统只有一个内存节点
+*/
 typedef struct pglist_data {
+	// node_zones[MAX_NR_ZONES]：一个数组，表示节点中的内存域（zones）。
 	struct zone node_zones[MAX_NR_ZONES];
+	// node_zonelists[MAX_ZONELISTS]：一个数组，表示节点中的内存域列表（zonelists），用于分配内存时按照优先级进行遍历。
 	struct zonelist node_zonelists[MAX_ZONELISTS];
+	// nr_zones：表示节点中内存域的数量。
 	int nr_zones;
 #ifdef CONFIG_FLAT_NODE_MEM_MAP	/* means !SPARSEMEM */
+	// node_mem_map：指向节点的 struct page 数组，表示节点中所有物理页的元数据。
 	struct page *node_mem_map;
 #ifdef CONFIG_PAGE_EXTENSION
+	// node_page_ext：指向节点的 struct page_ext 数组，表示节点中所有物理页的扩展元数据。
 	struct page_ext *node_page_ext;
 #endif
 #endif
@@ -645,44 +838,59 @@ typedef struct pglist_data {
 	 *
 	 * Nests above zone->lock and zone->span_seqlock
 	 */
+	// node_size_lock：一个自旋锁，用于在内存热插拔和其他需要保持节点大小不变的操作期间保护节点的大小。
 	spinlock_t node_size_lock;
 #endif
+	// node_start_pfn：表示节点的起始页帧号（Page Frame Number）。
 	unsigned long node_start_pfn;
+	// node_present_pages：表示节点中实际存在的物理页数量。
 	unsigned long node_present_pages; /* total number of physical pages */
+	// node_spanned_pages：表示节点中所有物理页范围的大小，包括空洞（未使用的内存区域）。
 	unsigned long node_spanned_pages; /* total size of physical page
 					     range, including holes */
+	// node_id：表示节点的 ID。
 	int node_id;
+	// kswapd_wait 和 pfmemalloc_wait：等待队列，用于唤醒 kswapd 和其他内存回收线程。
 	wait_queue_head_t kswapd_wait;
 	wait_queue_head_t pfmemalloc_wait;
+	// kswapd：指向负责节点的内存回收的内核线程的指针。
 	struct task_struct *kswapd;	/* Protected by
 					   mem_hotplug_begin/end() */
+	// kswapd_order 和 kswapd_classzone_idx：用于指示 kswapd 期望回收的内存大小和类型。
 	int kswapd_order;
 	enum zone_type kswapd_classzone_idx;
 
+	// kswapd_failures：表示 kswapd 运行期间 "回收数量为0" 的失败次数。
 	int kswapd_failures;		/* Number of 'reclaimed == 0' runs */
 
 #ifdef CONFIG_COMPACTION
+	// kcompactd_max_order 和 kcompactd_classzone_idx：表示 kcompactd 期望回收的内存大小和类型。
 	int kcompactd_max_order;
 	enum zone_type kcompactd_classzone_idx;
+	// kcompactd_wait：等待队列，用于唤醒 kcompactd 内存压缩线程。
 	wait_queue_head_t kcompactd_wait;
+	// kcompactd：指向负责节点的内存压缩的内核线程的指针。
 	struct task_struct *kcompactd;
 #endif
 	/*
 	 * This is a per-node reserve of pages that are not available
 	 * to userspace allocations.
 	 */
+	// totalreserve_pages：表示节点中保留且不可用于用户空间分配的总页数。
 	unsigned long		totalreserve_pages;
 
 #ifdef CONFIG_NUMA
 	/*
 	 * zone reclaim becomes active if more unmapped pages exist.
 	 */
+	// min_unmapped_pages 和 min_slab_pages：表示启用区域回收（zone reclaim）所需的最小未映射和 slab 页面数。
 	unsigned long		min_unmapped_pages;
 	unsigned long		min_slab_pages;
 #endif /* CONFIG_NUMA */
 
 	/* Write-intensive fields used by page reclaim */
 	ZONE_PADDING(_pad1_)
+	// lru_lock：自旋锁，用于保护与节点相关的 LRU（Least Recently Used）列表。
 	spinlock_t		lru_lock;
 
 #ifdef CONFIG_DEFERRED_STRUCT_PAGE_INIT
@@ -690,26 +898,34 @@ typedef struct pglist_data {
 	 * If memory initialisation on large machines is deferred then this
 	 * is the first PFN that needs to be initialised.
 	 */
+	// first_deferred_pfn：在启用 CONFIG_DEFERRED_STRUCT_PAGE_INIT 时，表示需要初始化的第一个 PFN。
 	unsigned long first_deferred_pfn;
 	/* Number of non-deferred pages */
+	// static_init_pgcnt：表示非延迟初始化的页数。
 	unsigned long static_init_pgcnt;
 #endif /* CONFIG_DEFERRED_STRUCT_PAGE_INIT */
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+	// split_queue_lock：在启用 CONFIG_TRANSPARENT_HUGEPAGE 时，表示用于保护分裂队列的自旋锁。
 	spinlock_t split_queue_lock;
+	// split_queue：在启用 CONFIG_TRANSPARENT_HUGEPAGE 时，表示用于存储需要拆分的巨大页的链表。
 	struct list_head split_queue;
+	// split_queue_len：在启用 CONFIG_TRANSPARENT_HUGEPAGE 时，表示分裂队列的长度。
 	unsigned long split_queue_len;
 #endif
 
 	/* Fields commonly accessed by the page reclaim scanner */
+	// lruvec：表示与节点相关的 LRU 向量，它包含了不同迁移类型的 LRU 链表。
 	struct lruvec		lruvec;
-
+	// flags：表示与节点相关的标志。
 	unsigned long		flags;
 
 	ZONE_PADDING(_pad2_)
 
 	/* Per-node vmstats */
+	// per_cpu_nodestats：表示每个 CPU 的节点统计信息。
 	struct per_cpu_nodestat __percpu *per_cpu_nodestats;
+	// vm_stat[NR_VM_NODE_STAT_ITEMS]：表示与虚拟内存相关的节点统计信息。
 	atomic_long_t		vm_stat[NR_VM_NODE_STAT_ITEMS];
 } pg_data_t;
 
@@ -1105,6 +1321,8 @@ static inline unsigned long section_nr_to_pfn(unsigned long sec)
 
 struct page;
 struct page_ext;
+// mem_section 结构体定义了内存分段的信息。在内核中，物理内存被划分为大小相等的内存分段，以便于管理和分配。
+// mem_section 结构体的大小必须是 2 的幂，以便于计算和使用 SECTION_ROOT_MASK。这有助于简化内存管理操作和提高性能。
 struct mem_section {
 	/*
 	 * This is, logically, a pointer to an array of struct
@@ -1118,16 +1336,23 @@ struct mem_section {
 	 * Making it a UL at least makes someone do a cast
 	 * before using it wrong.
 	 */
+	// section_mem_map: 从逻辑上讲，这是一个指向 struct page 数组的指针。
+	// 然而，在存储过程中会有一些其他魔法操作（详见 sparse.c::sparse_init_one_section()）。
+	// 此外，在早期启动期间，我们在这里编码内存分段所在位置的节点ID，以指导内存分配（详见 sparse.c::memory_present()）。
+	// 将其定义为 unsigned long 至少使得在错误使用前需要进行类型转换。
 	unsigned long section_mem_map;
 
 	/* See declaration of similar field in struct zone */
+	// pageblock_flags: 一个指向无符号长整型数组的指针，用于存储与内存分段相关的 pageblock 的标志信息。这个字段的声明与 struct zone 中的类似字段相似。
 	unsigned long *pageblock_flags;
 #ifdef CONFIG_PAGE_EXTENSION
 	/*
 	 * If SPARSEMEM, pgdat doesn't have page_ext pointer. We use
 	 * section. (see page_ext.h about this.)
 	 */
+	// page_ext: （仅在 CONFIG_PAGE_EXTENSION 定义时存在） 如果使用 SPARSEMEM，pgdat 没有指向 page_ext 的指针。在这种情况下，我们使用内存分段（有关此内容，请参阅 page_ext.h）。
 	struct page_ext *page_ext;
+	// pad: （仅在 CONFIG_PAGE_EXTENSION 定义时存在）一个用于填充的无符号长整型变量，以确保结构体的大小保持为 2 的幂。
 	unsigned long pad;
 #endif
 	/*
@@ -1279,9 +1504,14 @@ void sparse_init(void);
  * this caches recent lookups. The implementation of __early_pfn_to_nid
  * may treat start/end as pfns or sections.
  */
+// mminit_pfnnid_cache 结构体是一个简单的缓存结构，用于存储最近访问的物理帧号（PFN）范围及其对应的节点ID（nid）
+// 通过使用这个缓存结构，如果查询的物理帧号在最近访问的范围内，就可以直接从缓存中获取其对应的节点ID，从而避免了重复的查找操作，提高了查找效率。
 struct mminit_pfnnid_cache {
+	// last_start: 一个无符号长整型变量，表示最近访问的物理帧号范围的起始值。
 	unsigned long last_start;
+	// last_end: 一个无符号长整型变量，表示最近访问的物理帧号范围的结束值。
 	unsigned long last_end;
+	// last_nid: 一个整型变量，表示最近访问的物理帧号范围所属的节点ID。
 	int last_nid;
 };
 
