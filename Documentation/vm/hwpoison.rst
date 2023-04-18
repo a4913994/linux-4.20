@@ -5,13 +5,16 @@ hwpoison
 ========
 
 What is hwpoison?
+什么是hwpoison？
 =================
 
 Upcoming Intel CPUs have support for recovering from some memory errors
 (``MCA recovery``). This requires the OS to declare a page "poisoned",
 kill the processes associated with it and avoid using it in the future.
+在即将推出的Intel CPU上，有支持从一些内存错误中恢复的功能（“MCA恢复”）。这需要操作系统声明一个页面“poisoned”，杀死与它相关的进程，并避免将来使用它。
 
 This patchkit implements the necessary infrastructure in the VM.
+这个补丁包在VM中实现了必要的基础设施。
 
 To quote the overview comment:
 

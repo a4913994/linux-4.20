@@ -14,6 +14,7 @@
  * Authors: Jérôme Glisse <jglisse@redhat.com>
  */
 /*
+ * 异构内存管理
  * Heterogeneous Memory Management (HMM)
  *
  * See Documentation/vm/hmm.rst for reasons and overview of what HMM is and it
