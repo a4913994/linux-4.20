@@ -46,6 +46,7 @@ static struct vfsmount *shm_mnt;
  * This virtual memory filesystem is heavily based on the ramfs. It
  * extends ramfs by the ability to use swap and honor resource limits
  * which makes it a completely usable filesystem.
+ 这个虚拟内存文件系统很大程度上基于 ramfs。它通过使用交换和遵守资源限制的能力扩展 ramfs,这使它成为一个完全可用的文件系统。
  */
 
 #include <linux/xattr.h>
@@ -84,29 +85,53 @@ static struct vfsmount *shm_mnt;
 
 #include "internal.h"
 
+// BLOCKS_PER_PAGE: 计算每个内存页中包含的块数量。PAGE_SIZE 通常是一个常量，表示内存页的大小（以字节为单位）。
+// 除以 512 是因为块大小通常为 512 字节。所以 BLOCKS_PER_PAGE 是一个内存页中包含的 512 字节块的数量。
 #define BLOCKS_PER_PAGE  (PAGE_SIZE/512)
+// VM_ACCT(size): 用于计算虚拟内存的使用量。首先，PAGE_ALIGN(size) 将给定的 size（以字节为单位）向上舍入到最接近的页边界。
+// 接下来，通过右移 PAGE_SHIFT 位数，将字节大小转换为页数量。PAGE_SHIFT 是一个常量，用于表示页大小的位数。
+// 例如，如果 PAGE_SIZE 是 4096 字节（4KB），那么 PAGE_SHIFT 将是 12（因为 2^12 = 4096）。所以 VM_ACCT(size) 计算出给定大小的虚拟内存占用了多少个内存页。
 #define VM_ACCT(size)    (PAGE_ALIGN(size) >> PAGE_SHIFT)
 
 /* Pretend that each entry is of this size in directory's i_size */
+// BOGO_DIRENT_SIZE 是一个宏定义，用于表示目录项（dirent）的伪造大小。这个值通常在一些文件系统操作中用于估计目录项的大小，
+// 比如计算目录项缓冲区的大小。这里的伪造大小设为 20 字节。实际上，目录项的大小可能因文件系统和具体实现而有所不同，
+// 但这个值可以作为一个估计值，用于简化计算
 #define BOGO_DIRENT_SIZE 20
 
 /* Symlink up to this size is kmalloc'ed instead of using a swappable page */
+// SHORT_SYMLINK_LEN 定义了短符号链接的最大长度为 128 字节。短符号链接通常是指其目标路径存储在 inode 结构中，
+// 而不是在磁盘上单独分配一个数据块。这样可以节省空间并提高访问速度，因为不需要额外的磁盘访问来获取链接目标。
+// 然而，这种优化仅适用于较短的符号链接，因为 inode 结构的空间有限。
 #define SHORT_SYMLINK_LEN 128
 
 /*
  * shmem_fallocate communicates with shmem_fault or shmem_writepage via
  * inode->i_private (with i_mutex making sure that it has only one user at
  * a time): we would prefer not to enlarge the shmem inode just for that.
+ * shmem_fallocate 通过 shmem_fault 或 shmem_writepage 通信
+ * inode->i_private（使用 i_mutex 确保它只有一个用户
+ * 一次）：我们不希望为此扩大 shmem inode。
  */
+// shmem_falloc 是一个结构体，与共享内存文件的按需分配（fallocate）相关。
+// 按需分配是一种为文件预先分配空间的方法，这样可以保证连续的磁盘空间并提高文件访问速度
 struct shmem_falloc {
+	// waitq：等待队列头，用于管理等待在当前“洞”（hole）上的缺页故障，直到“冲压”（punch）操作结束。
 	wait_queue_head_t *waitq; /* faults into hole wait for punch to end */
+	// start：表示当前按需分配范围的起始页偏移
 	pgoff_t start;		/* start of range currently being fallocated */
+	// next：表示下一个要进行按需分配的页偏移
 	pgoff_t next;		/* the next page offset to be fallocated */
+	// nr_falloced：表示已经按需分配的新页数
 	pgoff_t nr_falloced;	/* how many new pages have been fallocated */
+	// nr_unswapped：表示 writepage 拒绝换出（swap out）的次数
 	pgoff_t nr_unswapped;	/* how often writepage refused to swap out */
 };
 
 #ifdef CONFIG_TMPFS
+// shmem_default_max_blocks 用于计算共享内存文件系统（如 tmpfs）的默认最大块数。
+// 它返回可用内存（RAM）页数的一半作为默认的最大块数。
+// 这意味着 tmpfs 文件系统默认最多可以使用系统内存的一半。但是，这个值可以通过挂载选项来配置，以便在需要时允许 tmpfs 使用更多或更少的内存。
 static unsigned long shmem_default_max_blocks(void)
 {
 	return totalram_pages / 2;

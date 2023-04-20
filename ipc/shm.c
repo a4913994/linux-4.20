@@ -49,32 +49,53 @@
 
 #include "util.h"
 
+// shmid_kernel 是一个在 Linux 内核中表示 System V 共享内存段的结构体。
 struct shmid_kernel /* private to the kernel */
 {
+	// shm_perm：表示共享内存段的访问权限
 	struct kern_ipc_perm	shm_perm;
+	// shm_file：与共享内存段关联的文件对象。这个文件对象在Linux中是用于管理共享内存段的内存。
 	struct file		*shm_file;
+	// shm_nattch：表示当前附加到共享内存段的进程数量。
 	unsigned long		shm_nattch;
+	// shm_segsz：共享内存段的大小，以字节为单位。
 	unsigned long		shm_segsz;
+	// shm_atim：共享内存段最后一次附加的时间。
 	time64_t		shm_atim;
+	// shm_dtim：共享内存段最后一次分离的时间。
 	time64_t		shm_dtim;
+	// shm_ctim：共享内存段最后一次更改的时间。
 	time64_t		shm_ctim;
+	// shm_cprid：创建共享内存段的进程的 PID。
 	struct pid		*shm_cprid;
+	// shm_lprid：最后一个操作共享内存段的进程的 PID。
 	struct pid		*shm_lprid;
+	// mlock_user：用于表示锁定共享内存段的用户的结构。
 	struct user_struct	*mlock_user;
 
 	/* The task created the shm object.  NULL if the task is dead. */
+	// 创建共享内存对象的任务指针。如果任务已经死亡，则为 NULL。
 	struct task_struct	*shm_creator;
+	// shm_clist：用于维护由创建者创建的共享内存段的链表。
 	struct list_head	shm_clist;	/* list by creator */
 } __randomize_layout;
 
 /* shm_mode upper byte flags */
+// 当没有进程与该共享内存段关联时，内核将自动回收并销毁该共享内存段。此标志有助于确保不会有悬空的共享内存段在系统中占用资源。
 #define SHM_DEST	01000	/* segment will be destroyed on last detach */
+// 当这个属性被设置时，共享内存段将不会被交换（换出到磁盘）。这意味着当系统内存紧张时，设置了这个属性的共享内存段将始终保留在物理内存中，
+// 而不会被交换到磁盘上，从而提高了访问该共享内存段的性能。需要注意的是，锁定大量共享内存段可能会导致物理内存不足，进而影响系统的整体性能。
 #define SHM_LOCKED	02000   /* segment will not be swapped */
 
+// shm_file_data 是一个用于表示 System V 共享内存文件数据的结构体
 struct shm_file_data {
+	// 表示共享内存标识符（shared memory identifier），用于唯一标识一个共享内存段。
 	int id;
+	// ns: 指向与共享内存关联的 IPC 命名空间的指针。IPC 命名空间用于隔离不同进程间的 System V 共享内存、消息队列和信号量
 	struct ipc_namespace *ns;
+	// file: 指向代表共享内存段的内核文件对象的指针。共享内存段在内核中被表示为一个文件对象，用于管理对该共享内存段的访问。
 	struct file *file;
+	// vm_ops: 指向虚拟内存操作集的指针。虚拟内存操作集定义了如何处理与共享内存段相关的虚拟内存事件，例如页面错误、映射和取消映射等。
 	const struct vm_operations_struct *vm_ops;
 };
 

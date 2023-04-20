@@ -259,76 +259,108 @@ struct memcg_padding {
  * page cache and RSS per cgroup. We would eventually like to provide
  * statistics based on the statistics developed by Rik Van Riel for clock-pro,
  * to help the administrator determine what knobs to tune.
+ * 内存控制器数据结构。内存控制器控制每个cgroup的页面缓存和RSS。
+ * 我们最终希望提供基于Rik Van Riel开发的clock-pro的统计数据，以帮助管理员确定要调整的参数
+ * 
+ * mem_cgroup，用于实现内存控制组（memory cgroup）。它继承了 cgroup_subsys_state，包含了用于跟踪内存使用量和限制的各种计数器。
+ * 它还包括一些用于进程移动、OOM killer、事件通知、阈值限制等功能的字段。其中 nodeinfo 是一个指向 mem_cgroup_per_node 的指针数组，
+ * 用于在 NUMA 系统上跟踪节点上的内存使用情况。
  */
 struct mem_cgroup {
+	// css;：用于表示这个控制组在内核中的状态。
 	struct cgroup_subsys_state css;
 
 	/* Private memcg ID. Used to ID objects that outlive the cgroup */
+	// id;：内存控制组的私有ID，用于标识控制组内的对象。
 	struct mem_cgroup_id id;
 
 	/* Accounted resources */
+	// memory;：用于跟踪内存使用情况的计数器
 	struct page_counter memory;
+	// swap;：用于跟踪交换空间使用情况的计数器
 	struct page_counter swap;
 
 	/* Legacy consumer-oriented counters */
+	// memsw;：用于跟踪内存和交换空间使用情况的计数器。
 	struct page_counter memsw;
+	// kmem;：用于跟踪内核内存使用情况的计数器。
 	struct page_counter kmem;
+	// tcpmem;：用于跟踪TCP缓存使用情况的计数器。
 	struct page_counter tcpmem;
 
 	/* Upper bound of normal memory consumption range */
+	// high;：内存控制组允许使用的最大内存量。
 	unsigned long high;
 
 	/* Range enforcement for interrupt charges */
+	// high_work;：在达到内存限制时，调度的工作项
 	struct work_struct high_work;
 
+	// soft_limit;：内存控制组的软限制，超过该限制后，内核会发送OOM Killer信号。
 	unsigned long soft_limit;
 
 	/* vmpressure notifications */
+	// vmpressure;：用于VMPressure通知的数据结构。
 	struct vmpressure vmpressure;
 
 	/*
 	 * Should the accounting and control be hierarchical, per subtree?
 	 */
+	// use_hierarchy;：表示内存控制组是否使用层级结构。
 	bool use_hierarchy;
 
 	/*
 	 * Should the OOM killer kill all belonging tasks, had it kill one?
 	 */
+	// oom_group;：当一个任务被OOM Killer杀死时，内存控制组中的所有任务是否应该被杀死。
 	bool oom_group;
 
 	/* protected by memcg_oom_lock */
+	// oom_lock;：表示是否启用了内存控制组的OOM Killer。
 	bool		oom_lock;
+	// under_oom;：是否处于OOM Killer状态。
 	int		under_oom;
 
+	// swappiness;：表示内存控制组的swappiness值。
 	int	swappiness;
 	/* OOM-Killer disable */
+	// oom_kill_disable;：表示是否禁用了内存控制组的OOM Killer。
 	int		oom_kill_disable;
 
 	/* memory.events */
+	// events_file;：内存控制组的事件文件。
 	struct cgroup_file events_file;
 
 	/* handle for "memory.swap.events" */
+	// swap_events_file;：内存控制组的交换空间事件文件。
 	struct cgroup_file swap_events_file;
 
 	/* protect arrays of thresholds */
+	// thresholds_lock;：用于保护阈值数组的互斥锁。
 	struct mutex thresholds_lock;
 
 	/* thresholds for memory usage. RCU-protected */
+	// thresholds;：用于内存使用情况的阈值数组。
 	struct mem_cgroup_thresholds thresholds;
 
 	/* thresholds for mem+swap usage. RCU-protected */
+	// memsw_thresholds;：用于内存和交换空间使用情况的阈值数组。
 	struct mem_cgroup_thresholds memsw_thresholds;
 
 	/* For oom notifier event fd */
+	// oom_notify;：OOM Killer通知的列表。
 	struct list_head oom_notify;
 
 	/*
 	 * Should we move charges of a task when a task is moved into this
 	 * mem_cgroup ? And what type of charges should we move ?
 	 */
+	// move_charge_at_immigrate;：移动任务到这个内存控制组时是否移动任务的内存资源。
 	unsigned long move_charge_at_immigrate;
 	/* taken only while moving_account > 0 */
+	// move_lock;：用于保护移动账户的自旋锁。
 	spinlock_t		move_lock;
+	// move_lock_flags;：用于标记移动任务时的标志位。
 	unsigned long		move_lock_flags;
 
 	MEMCG_PADDING(_pad1_);
@@ -336,47 +368,68 @@ struct mem_cgroup {
 	/*
 	 * set > 0 if pages under this cgroup are moving to other cgroup.
 	 */
+	// moving_account: 记录此 mem_cgroup 下的页框正在移动到其他 mem_cgroup 的数量。
 	atomic_t		moving_account;
+	// move_lock_task: 如果 moving_account 大于 0，将阻止所有新的迁移操作，只允许一个操作进行。move_lock_task 记录了当前持有迁移锁的任务。
 	struct task_struct	*move_lock_task;
 
 	/* memory.stat */
+	// stat_cpu: 用于按 CPU 统计资源使用情况的计数器数组，每个 CPU 一组。
 	struct mem_cgroup_stat_cpu __percpu *stat_cpu;
 
 	MEMCG_PADDING(_pad2_);
 
+	// stat: 包含在此 mem_cgroup 中使用的各种资源的计数器数组，例如使用的内存、缓存、页帧、页交换、重用页等等。
 	atomic_long_t		stat[MEMCG_NR_STAT];
+	// events: 包含计数器，表示 mem_cgroup 的各种事件的数量，例如在 mem_cgroup 中的 OOM 次数、在其中的迁移数量、在其中的缓存压力事件数量等等。
 	atomic_long_t		events[NR_VM_EVENT_ITEMS];
+	// memory_events: 包含计数器，表示在此 mem_cgroup 中发生的内存事件的数量，例如页面错误、页面回收等。
 	atomic_long_t memory_events[MEMCG_NR_MEMORY_EVENTS];
 
+	// socket_pressure: 用于跟踪套接字压力事件的计数器。
 	unsigned long		socket_pressure;
 
 	/* Legacy tcp memory accounting */
+	// tcpmem_active: 指示是否在此 mem_cgroup 中启用了 TCP 内存限制。
 	bool			tcpmem_active;
+	// tcpmem_pressure: 表示在此 mem_cgroup 中的 TCP 连接所经历的压力
 	int			tcpmem_pressure;
 
 #ifdef CONFIG_MEMCG_KMEM
         /* Index in the kmem_cache->memcg_params.memcg_caches array */
+	// kmemcg_id: 此 mem_cgroup 用于内核内存池的 ID。
 	int kmemcg_id;
+	// kmem_state: 表示此 mem_cgroup 在内存池上的状态，例如被禁用或被冻结。
 	enum memcg_kmem_state kmem_state;
+	// kmem_caches: 包含此 mem_cgroup 此时正在使用的内存池的链表。
 	struct list_head kmem_caches;
 #endif
 
+	// last_scanned_node: 最后一次使用 mem_cgroup 扫描的 NUMA 节点 ID。
 	int last_scanned_node;
 #if MAX_NUMNODES > 1
+	// scan_nodes: 要在其中扫描内存使用情况的 NUMA 节点掩码。
 	nodemask_t	scan_nodes;
+	// numainfo_events: 跟踪 NUMA 相关事件的计数器。
 	atomic_t	numainfo_events;
+	// numainfo_updating: 指示是否正在更新 NUMA 信息。
 	atomic_t	numainfo_updating;
 #endif
 
 #ifdef CONFIG_CGROUP_WRITEBACK
+	// cgwb_list: 包含已分配给此 mem_cgroup 的内核缓存的链表。
 	struct list_head cgwb_list;
+	// cgwb_domain: 此 mem_cgroup 的写回域。
 	struct wb_domain cgwb_domain;
 #endif
 
 	/* List of events which userspace want to receive */
+	// event_list: 包含在此 mem_cgroup 中注册的事件的链表。
 	struct list_head event_list;
+	// event_list_lock: 用于保护 event_list 的自旋锁。
 	spinlock_t event_list_lock;
 
+	// nodeinfo: 数组，每个元素代表此 mem_cgroup 在一个 NUMA 节点上的使用情况，从而支持 NUMA 感知内存管理。
 	struct mem_cgroup_per_node *nodeinfo[0];
 	/* WARNING: nodeinfo must be the last member here */
 };

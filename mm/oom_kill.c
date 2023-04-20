@@ -49,8 +49,14 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/oom.h>
 
+// sysctl_panic_on_oom：当设置为非零值时，内核在遇到OOM（内存耗尽）情况时会触发内核紧急（panic）。
+// 默认情况下，该值为0，内核会选择一个进程杀死以释放内存，而不是触发紧急
 int sysctl_panic_on_oom;
+// sysctl_oom_kill_allocating_task：当设置为非零值时，内核在遇到OOM情况时会杀死当前正在分配内存的任务，
+// 而不是选择一个最佳候选进程杀死。默认情况下，该值为0，内核会根据OOM评分选择一个进程杀死。
 int sysctl_oom_kill_allocating_task;
+// sysctl_oom_dump_tasks：当设置为非零值时，内核在遇到OOM情况时会在内核日志中输出所有任务的内存使用信息。
+// 默认情况下，该值为1，内核会输出这些信息。
 int sysctl_oom_dump_tasks = 1;
 
 /*
@@ -60,6 +66,9 @@ int sysctl_oom_dump_tasks = 1;
  *
  * oom_killer_disable() relies on this lock to stabilize oom_killer_disabled
  * and mark_oom_victim
+ * 
+ * 对所有上下文中的OOM killer调用（out_of_memory()）进行串行化，以防止过于热衷的OOM killer执行（例如，当OOM killer从不同的域中调用时）
+ * oom_killer_disable()依赖于此锁来稳定oom_killer_disabled和mark_oom_victim。
  */
 DEFINE_MUTEX(oom_lock);
 
@@ -72,9 +81,18 @@ DEFINE_MUTEX(oom_lock);
  * Task eligibility is determined by whether or not a candidate task, @tsk,
  * shares the same mempolicy nodes as current if it is bound by such a policy
  * and whether or not it has the same set of allowed cpuset nodes.
+ * 
+ * has_intersects_mems_allowed() - 检查任务是否有资格被kill
+ * @start: 要考虑的任务的任务结构体
+ * @mask: 用于内存策略OOM的传递给页面分配器的节点掩码
+ * 
+ * 任务资格取决于候选任务 @tsk 是否与当前任务共享相同的内存策略节点（如果它被该策略绑定），
+ * 以及它是否具有相同的允许cpuset节点集合。
+ * 取决于两个条件
+ * 1. 是否共享相同的内存策略节点
+ * 2. 是否具有相同的允许cpuset节点集合
  */
-static bool has_intersects_mems_allowed(struct task_struct *start,
-					const nodemask_t *mask)
+static bool has_intersects_mems_allowed(struct task_struct *start, const nodemask_t *mask)
 {
 	struct task_struct *tsk;
 	bool ret = false;
@@ -116,6 +134,7 @@ static bool has_intersects_mems_allowed(struct task_struct *tsk,
  * use_mm(), but one or more of its subthreads may still have a valid
  * pointer.  Return p, or any of its subthreads with a valid ->mm, with
  * task_lock() held.
+ * 进程p可能在退出或通过use_mm()分离自己的->mm，但是其一个或多个子线程仍可能具有有效的指针。返回p或具有有效->mm的任何子线程，并保持task_lock()。
  */
 struct task_struct *find_lock_task_mm(struct task_struct *p)
 {
@@ -139,6 +158,7 @@ found:
 /*
  * order == -1 means the oom kill is required by sysrq, otherwise only
  * for display purposes.
+ * order == -1表示oom kill是sysrq所需的，否则仅用于显示目的
  */
 static inline bool is_sysrq_oom(struct oom_control *oc)
 {
@@ -151,6 +171,7 @@ static inline bool is_memcg_oom(struct oom_control *oc)
 }
 
 /* return true if the task is not adequate as candidate victim task. */
+// 如果任务不足以成为候选受害任务，则返回true
 static bool oom_unkillable_task(struct task_struct *p,
 		struct mem_cgroup *memcg, const nodemask_t *nodemask)
 {
