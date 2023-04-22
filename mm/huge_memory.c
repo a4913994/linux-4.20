@@ -45,8 +45,16 @@
  * enabled, it is for all mappings, and khugepaged scans all mappings.
  * Defrag is invoked by khugepaged hugepage allocations and by page faults
  * for all hugepage allocations.
+ * 默认情况下，透明大页面支持被禁用，以避免为不能保证从中受益的应用程序增加内存占用。
+ * 当启用透明大页面支持时，它适用于所有映射，而khugepaged会扫描所有映射。
+ * 在khugepaged进行大页面分配和所有大页面分配的页面故障时，都会调用碎片整理。
  */
 unsigned long transparent_hugepage_flags __read_mostly =
+// TRANSPARENT_HUGEPAGE_ALWAYS：总是启用透明大页
+// TRANSPARENT_HUGEPAGE_MADVISE：基于MADV_HUGEPAGE参数启用透明大页
+// TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG：在启用透明大页的情况下，在THP分裂时可以选择使用THP
+// TRANSPARENT_HUGEPAGE_DEFRAG_KHUGEPAGED_FLAG：启用THP分裂、合并和khugepaged后端
+// TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG：使用全0的大页，以节省内存
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS
 	(1<<TRANSPARENT_HUGEPAGE_FLAG)|
 #endif
@@ -57,24 +65,31 @@ unsigned long transparent_hugepage_flags __read_mostly =
 	(1<<TRANSPARENT_HUGEPAGE_DEFRAG_KHUGEPAGED_FLAG)|
 	(1<<TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG);
 
+// shrinker是一个结构体类型，它是内核中用于进行内存回收的机制
 static struct shrinker deferred_split_shrinker;
 
+// huge_zero_refcount是一个原子类型变量，用于存储huge_zero_page的引用计数，以及在需要时对其进行操作，原子类型可以保证在多线程环境下的并发访问安全。
 static atomic_t huge_zero_refcount;
+// huge_zero_page是一个结构体类型为page的变量，用于存储用于巨大页面清零的页面。__read_mostly表示这个变量是只读的，因此可以被多个CPU同时读取而不需要加锁。
 struct page *huge_zero_page __read_mostly;
 
+// 用于获取巨大页的空白页
 static struct page *get_huge_zero_page(void)
 {
 	struct page *zero_page;
 retry:
+	// 如果该计数器已经不为零，则返回静态变量huge_zero_page，其中保存了先前分配的空白页
 	if (likely(atomic_inc_not_zero(&huge_zero_refcount)))
 		return READ_ONCE(huge_zero_page);
 
+	// 如果计数器为零，则使用alloc_pages()函数分配一个新的巨大页并清零，如果分配失败，则返回NULL
 	zero_page = alloc_pages((GFP_TRANSHUGE | __GFP_ZERO) & ~__GFP_MOVABLE,
 			HPAGE_PMD_ORDER);
 	if (!zero_page) {
 		count_vm_event(THP_ZERO_PAGE_ALLOC_FAILED);
 		return NULL;
 	}
+	// 如果成功分配，则使用cmpxchg()函数将全局变量huge_zero_page设置为刚刚分配的页面，并同时使用原子变量huge_zero_refcount增加一个额外的引用计数
 	count_vm_event(THP_ZERO_PAGE_ALLOC);
 	preempt_disable();
 	if (cmpxchg(&huge_zero_page, NULL, zero_page)) {
@@ -84,6 +99,7 @@ retry:
 	}
 
 	/* We take additional reference here. It will be put back by shrinker */
+	// 我们在这里获取额外的引用。它将由shrinker放回
 	atomic_set(&huge_zero_refcount, 2);
 	preempt_enable();
 	return READ_ONCE(huge_zero_page);
@@ -94,6 +110,7 @@ static void put_huge_zero_page(void)
 	/*
 	 * Counter should never go to zero here. Only shrinker can put
 	 * last reference.
+	 * 计数器在这里永远不应该变为零。只有shrinker才能放置最后的引用。
 	 */
 	BUG_ON(atomic_dec_and_test(&huge_zero_refcount));
 }
@@ -118,13 +135,21 @@ void mm_put_huge_zero_page(struct mm_struct *mm)
 		put_huge_zero_page();
 }
 
+// shrink_huge_zero_page_count是一个回调函数，它是用来统计可以释放的空闲页的数量的
+// 由于这个函数是专门为了管理巨大页面的零页而设计的，所以它只统计可以释放的巨大页面数量，
+// 如果零页的引用计数不是1，则表示无法释放，返回0；否则可以释放一个巨大页面，返回巨大页面的数量
 static unsigned long shrink_huge_zero_page_count(struct shrinker *shrink,
 					struct shrink_control *sc)
 {
 	/* we can free zero page only if last reference remains */
+	// 只有最后一个引用仍然存在时，我们才能释放零页
 	return atomic_read(&huge_zero_refcount) == 1 ? HPAGE_PMD_NR : 0;
 }
 
+// shrink_huge_zero_page_scan函数，用于在零页面没有被引用时释放它
+// 当函数被调用时，它首先检查是否只有一个引用。如果是，则获取huge_zero_page指针，
+// 将huge_zero_page指针置为NULL，并释放该页面。如果不是，则函数什么也不做。
+// 该函数的返回值表示在此次调用中被释放的页面数，如果没有被释放则返回0。
 static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
 				       struct shrink_control *sc)
 {
@@ -392,11 +417,13 @@ static int __init hugepage_init(void)
 
 	/*
 	 * hugepages can't be allocated by the buddy allocator
+	 * 巨大页面不能由伙伴分配器分配
 	 */
 	MAYBE_BUILD_BUG_ON(HPAGE_PMD_ORDER >= MAX_ORDER);
 	/*
 	 * we use page->mapping and page->index in second tail page
 	 * as list_head: assuming THP order >= 2
+	 * 我们将第二个尾页面中的page->mapping和page->index用作list_head：假设THP order >= 2
 	 */
 	MAYBE_BUILD_BUG_ON(HPAGE_PMD_ORDER < 2);
 
@@ -419,6 +446,8 @@ static int __init hugepage_init(void)
 	 * By default disable transparent hugepages on smaller systems,
 	 * where the extra memory used could hurt more than TLB overhead
 	 * is likely to save.  The admin can still enable it through /sys.
+	 * 默认情况下，在较小的系统上禁用透明大页面，因为使用的额外内存可能会比TLB开销更大，
+	 * 而节省的开销可能并不明显。管理员仍可以通过/sys启用它。
 	 */
 	if (totalram_pages < (512 << (20 - PAGE_SHIFT))) {
 		transparent_hugepage_flags = 0;
@@ -484,6 +513,7 @@ pmd_t maybe_pmd_mkwrite(pmd_t pmd, struct vm_area_struct *vma)
 static inline struct list_head *page_deferred_list(struct page *page)
 {
 	/* ->lru in the tail pages is occupied by compound_head. */
+	// 尾页面中的->lru由compound_head占用
 	return &page[2].deferred_list;
 }
 
@@ -492,6 +522,7 @@ void prep_transhuge_page(struct page *page)
 	/*
 	 * we use page->mapping and page->indexlru in second tail page
 	 * as list_head: assuming THP order >= 2
+	 * 我们将第二个尾页面中的page->mapping和page->indexlru用作list_head：假设THP order >= 2
 	 */
 
 	INIT_LIST_HEAD(page_deferred_list(page));
@@ -569,6 +600,7 @@ static vm_fault_t __do_huge_pmd_anonymous_page(struct vm_fault *vmf,
 	 * The memory barrier inside __SetPageUptodate makes sure that
 	 * clear_huge_page writes become visible before the set_pmd_at()
 	 * write.
+	 * __SetPageUptodate内部的内存屏障确保在set_pmd_at()写入之前清除clear_huge_page写入变得可见。
 	 */
 	__SetPageUptodate(page);
 
@@ -628,6 +660,11 @@ release:
  * madvise: directly stall for MADV_HUGEPAGE, otherwise fail if not immediately
  *	    available
  * never: never stall for any thp allocation
+ * always：对于所有thp分配，直接停顿
+ * defer：唤醒kswapd并在立即可用时失败
+ * defer+madvise：唤醒kswapd并对于MADV_HUGEPAGE直接停顿，否则在立即可用时失败
+ * madvise：对于MADV_HUGEPAGE直接停顿，否则在立即可用时失败
+ * never：永远不会停顿任何thp分配
  */
 static inline gfp_t alloc_hugepage_direct_gfpmask(struct vm_area_struct *vma)
 {
@@ -770,6 +807,7 @@ vm_fault_t vmf_insert_pfn_pmd(struct vm_area_struct *vma, unsigned long addr,
 	 * If we had pmd_special, we could avoid all these restrictions,
 	 * but we need to be consistent with PTEs and architectures that
 	 * can't support a 'special' bit.
+	 * 如果我们有pmd_special，我们可以避免所有这些限制，但我们需要与不能支持“special”位的PTE和体系结构保持一致。
 	 */
 	BUG_ON(!(vma->vm_flags & (VM_PFNMAP|VM_MIXEDMAP)) &&
 			!pfn_t_devmap(pfn));
@@ -829,6 +867,7 @@ vm_fault_t vmf_insert_pfn_pud(struct vm_area_struct *vma, unsigned long addr,
 	 * If we had pud_special, we could avoid all these restrictions,
 	 * but we need to be consistent with PTEs and architectures that
 	 * can't support a 'special' bit.
+	 * 如果我们有pud_special，我们可以避免所有这些限制，但我们需要与不能支持“special”位的PTE和体系结构保持一致。
 	 */
 	BUG_ON(!(vma->vm_flags & (VM_PFNMAP|VM_MIXEDMAP)) &&
 			!pfn_t_devmap(pfn));
@@ -872,6 +911,7 @@ struct page *follow_devmap_pmd(struct vm_area_struct *vma, unsigned long addr,
 	/*
 	 * When we COW a devmap PMD entry, we split it into PTEs, so we should
 	 * not be in this function with `flags & FOLL_COW` set.
+	 * 当我们COW devmap PMD条目时，我们将其分成PTE，因此在flags & FOLL_COW设置时，我们不应该在此函数中
 	 */
 	WARN_ONCE(flags & FOLL_COW, "mm: In follow_devmap_pmd with FOLL_COW set");
 
@@ -889,6 +929,7 @@ struct page *follow_devmap_pmd(struct vm_area_struct *vma, unsigned long addr,
 	/*
 	 * device mapped pages can only be returned if the
 	 * caller will manage the page reference count.
+	 * 只有在调用方将管理页面引用计数时，才能返回设备映射的页面。
 	 */
 	if (!(flags & FOLL_GET))
 		return ERR_PTR(-EEXIST);
@@ -957,6 +998,7 @@ int copy_huge_pmd(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	 * When page table lock is held, the huge zero pmd should not be
 	 * under splitting since we don't split the page itself, only pmd to
 	 * a page table.
+	 * 当保持页面表锁时，巨大的零PMD不应该被拆分，因为我们不拆分页面本身，只拆分PMD到页面表
 	 */
 	if (is_huge_zero_pmd(pmd)) {
 		struct page *zero_page;
@@ -964,6 +1006,7 @@ int copy_huge_pmd(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		 * get_huge_zero_page() will never allocate a new page here,
 		 * since we already have a zero page to copy. It just takes a
 		 * reference.
+		 * get_huge_zero_page()永远不会在这里分配新页面，因为我们已经有一个零页要复制。它只是获取一个引用。
 		 */
 		zero_page = mm_get_huge_zero_page(dst_mm);
 		set_huge_zero_page(pgtable, dst_mm, vma, addr, dst_pmd,
@@ -1029,6 +1072,7 @@ struct page *follow_devmap_pud(struct vm_area_struct *vma, unsigned long addr,
 	/*
 	 * device mapped pages can only be returned if the
 	 * caller will manage the page reference count.
+	 * 只有在调用方将管理页面引用计数时，才能返回设备映射的页面。
 	 */
 	if (!(flags & FOLL_GET))
 		return ERR_PTR(-EEXIST);
@@ -1064,6 +1108,7 @@ int copy_huge_pud(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	 * When page table lock is held, the huge zero pud should not be
 	 * under splitting since we don't split the page itself, only pud to
 	 * a page table.
+	 * 当保持页面表锁时，巨大的零PUD不应该被拆分，因为我们不拆分页面本身，只拆分PUD到页面表。
 	 */
 	if (is_huge_zero_pud(pud)) {
 		/* No huge zero pud yet */
@@ -1189,6 +1234,9 @@ static vm_fault_t do_huge_pmd_wp_page_fallback(struct vm_fault *vmf,
 	 * device seeing memory write in different order than CPU.
 	 *
 	 * See Documentation/vm/mmu_notifier.rst
+	 * 在填充pte之前保留pmd为空。请注意，在此处必须进行通知，
+	 * 因为并发CPU线程可能在调用mmu_notifier_invalidate_range_end()之前写入新页面，这可能会导致设备看到的内存写入顺序与CPU不同。
+	 * 请参阅Documentation/vm/mmu_notifier.rst
 	 */
 	pmdp_huge_clear_flush_notify(vma, haddr, vmf->pmd);
 
@@ -1219,6 +1267,7 @@ static vm_fault_t do_huge_pmd_wp_page_fallback(struct vm_fault *vmf,
 	/*
 	 * No need to double call mmu_notifier->invalidate_range() callback as
 	 * the above pmdp_huge_clear_flush_notify() did already call it.
+	 * 无需双重调用mmu_notifier->invalidate_range()回调函数，因为上面的pmdp_huge_clear_flush_notify()已经调用了它。
 	 */
 	mmu_notifier_invalidate_range_only_end(vma->vm_mm, mmun_start,
 						mmun_end);
