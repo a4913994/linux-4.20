@@ -1,5 +1,6 @@
 /*
  * cpuidle.h - a generic framework for CPU idle power management
+ * cpuidle.h -CPU 空闲电源管理的通用框架
  *
  * (C) 2007 Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>
  *          Shaohua Li <shaohua.li@intel.com>

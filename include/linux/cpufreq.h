@@ -20,83 +20,124 @@
 #include <linux/sysfs.h>
 
 /*********************************************************************
- *                        CPUFREQ INTERFACE                          *
+ *                        CPUFREQ INTERFACE CPU频率接口               *
  *********************************************************************/
 /*
- * Frequency values here are CPU kHz
+ * Frequency values here are CPU kHz 
+ * 这里的频率值是 CPU kHz
  *
  * Maximum transition latency is in nanoseconds - if it's unknown,
  * CPUFREQ_ETERNAL shall be used.
+ * 最大的过渡延迟以纳秒为单位 - 如果不知道，请使用 CPUFREQ_ETERNAL。
  */
 
+// CPUFREQ_ETERNAL：此常量的值为-1，表示CPU频率永远不会发生变化。这在某些场景下可能会被用到，例如固定频率的CPU或不支持动态频率调整的硬件。
 #define CPUFREQ_ETERNAL			(-1)
+// CPUFREQ_NAME_LEN：此常量的值为16，用于定义CPU频率调节策略或驱动名称的最大长度。这是一个预定义的限制，以确保内核中的相关数据结构不会变得过大。
 #define CPUFREQ_NAME_LEN		16
 /* Print length for names. Extra 1 space for accommodating '\n' in prints */
+// CPUFREQ_NAME_PLEN：此常量的值为CPUFREQ_NAME_LEN + 1，即17。它为打印CPU频率调节策略或驱动名称预留了额外的一个字符，用于容纳换行符（'\n'）。这使得在打印名称时，换行符可以正确地放置在字符串末尾，以保持输出的整洁和可读性。
 #define CPUFREQ_NAME_PLEN		(CPUFREQ_NAME_LEN + 1)
 
 struct cpufreq_governor;
 
+// 定义了CPU频率表的排序状态
 enum cpufreq_table_sorting {
+	// CPUFREQ_TABLE_UNSORTED：表示频率表未排序。在此状态下，频率表中的频率值可能是无序的，因此在查找特定频率时可能需要进行线性搜索。
 	CPUFREQ_TABLE_UNSORTED,
+	// CPUFREQ_TABLE_SORTED_ASCENDING：表示频率表按升序排序。在此状态下，频率表中的频率值按从最小到最大的顺序排列。这使得在查找特定频率时可以使用更高效的搜索算法，如二分查找。
 	CPUFREQ_TABLE_SORTED_ASCENDING,
+	// CPUFREQ_TABLE_SORTED_DESCENDING：表示频率表按降序排序。在此状态下，频率表中的频率值按从最大到最小的顺序排列。这同样允许在查找特定频率时使用更高效的搜索算法。
 	CPUFREQ_TABLE_SORTED_DESCENDING
 };
 
+// cpufreq_freqs结构体表示在CPU频率变更期间的相关信息。在频率变更期间传递给回调函数，以提供有关即将发生的变更的详细信息
 struct cpufreq_freqs {
+	// cpu：表示发生频率变更的CPU编号
 	unsigned int cpu;	/* cpu nr */
+	// old：表示变更前的CPU频率（以千赫兹为单位）
 	unsigned int old;
+	// new：表示变更后的CPU频率（以千赫兹为单位）
 	unsigned int new;
+	// flags：表示cpufreq_driver的标志，与驱动程序相关
 	u8 flags;		/* flags of cpufreq_driver, see below. */
 };
 
+// cpufreq_cpuinfo结构体包含了有关CPU的频率信息
 struct cpufreq_cpuinfo {
+	// max_freq：表示该CPU支持的最大频率（以千赫兹为单位）
 	unsigned int		max_freq;
+	// min_freq：表示该CPU支持的最小频率（以千赫兹为单位）
 	unsigned int		min_freq;
-
 	/* in 10^(-9) s = nanoseconds */
+	// transition_latency：表示从一个频率切换到另一个频率所需的时间（以纳秒为单位）
 	unsigned int		transition_latency;
 };
 
+// cpufreq_user_policy结构体表示用户定义的CPU频率调整策略
 struct cpufreq_user_policy {
+	// min：用户定义的最小CPU频率（以千赫兹为单位）
 	unsigned int		min;    /* in kHz */
+	// max：用户定义的最大CPU频率（以千赫兹为单位）
 	unsigned int		max;    /* in kHz */
 };
 
+// 表示Linux内核中的一个CPU频率调节策略实例
 struct cpufreq_policy {
 	/* CPUs sharing clock, require sw coordination */
+	// 表示与此策略相关的在线CPU集合。
 	cpumask_var_t		cpus;	/* Online CPUs only */
+	// 与此策略相关的在线和离线CPU集合
 	cpumask_var_t		related_cpus; /* Online + Offline CPUs */
+	// 与此策略相关的存在的CPU集合
 	cpumask_var_t		real_cpus; /* Related and present */
 
+	// 该策略是否在受影响的CPU之间共享。
 	unsigned int		shared_type; /* ACPI: ANY or ALL affected CPUs
 						should set cpufreq */
+	// 表示管理此策略的在线CPU。
 	unsigned int		cpu;    /* cpu managing this policy, must be online */
 
+	// 指向CPU时钟的指针
 	struct clk		*clk;
+	// 包含有关CPU的频率信息
 	struct cpufreq_cpuinfo	cpuinfo;/* see above */
-
+	// 表示允许的最小CPU频率（以千赫兹为单位）。
 	unsigned int		min;    /* in kHz */
+	// 表示允许的最大CPU频率（以千赫兹为单位）。
 	unsigned int		max;    /* in kHz */
+	// 表示当前CPU频率（以千赫兹为单位），如果使用cpufreq调度器，此值是必需的
 	unsigned int		cur;    /* in kHz, only needed if cpufreq
 					 * governors are used */
+	// 在转换之前等于policy->cur的值。
 	unsigned int		restore_freq; /* = policy->cur before transition */
+	// 在挂起期间设置的频率。
 	unsigned int		suspend_freq; /* freq to set during suspend */
-
+	// 表示此策略的类型。
 	unsigned int		policy; /* see above */
+	// 在卸载之前使用的策略。
 	unsigned int		last_policy; /* policy before unplug */
+	// 指向当前使用的调度器的指针。
 	struct cpufreq_governor	*governor; /* see below */
+	// 一个指向调度器私有数据的指针
 	void			*governor_data;
+	// 表示最后使用的调度器名称。
 	char			last_governor[CPUFREQ_NAME_LEN]; /* last governor used */
-
+	// 如果需要调用update_policy()但当前处于IRQ上下文，将使用此工作结构
 	struct work_struct	update; /* if update_policy() needs to be
 					 * called, but you're in IRQ context */
-
+	// 表示用户策略的结构体。
 	struct cpufreq_user_policy user_policy;
+	// 指向频率表的指针。
 	struct cpufreq_frequency_table	*freq_table;
+	// 表示频率表的排序状态。
 	enum cpufreq_table_sorting freq_table_sorted;
 
+	// 用于将此策略添加到策略列表中的列表头。
 	struct list_head        policy_list;
+	// 用于sysfs接口的内核对象。
 	struct kobject		kobj;
+	// 表示内核对象注销完成的完成结构。
 	struct completion	kobj_unregister;
 
 	/*
@@ -107,6 +148,7 @@ struct cpufreq_policy {
 	 *   the policy altogether (eg. CPU hotplug), will hold this lock in write
 	 *   mode before doing so.
 	 */
+	// 用于保护策略结构的读写信号量。
 	struct rw_semaphore	rwsem;
 
 	/*
@@ -117,7 +159,9 @@ struct cpufreq_policy {
 	 * - fast_switch_enabled is to be set by governors that support fast
 	 *   frequency switching with the help of cpufreq_enable_fast_switch().
 	 */
+	// 如果驱动程序可以快速切换频率，应将其设置为true。
 	bool			fast_switch_possible;
+	// 如果支持快速频率切换的调度器启用了快速切换，将其设置为true
 	bool			fast_switch_enabled;
 
 	/*
@@ -125,6 +169,7 @@ struct cpufreq_policy {
 	 * the driver to set the frequency for this policy.  To be set by the
 	 * scaling driver (0, which is the default, means no preference).
 	 */
+	// 表示驱动程序在连续设置频率之间的首选平均时间间隔。由调度驱动程序设置（默认值为0，表示无特定偏好）。
 	unsigned int		transition_delay_us;
 
 	/*
@@ -134,29 +179,44 @@ struct cpufreq_policy {
 	 * Should be set if CPUs can do DVFS on behalf of other CPUs from
 	 * different cpufreq policies.
 	 */
+	// 如果CPU可以代表不同cpufreq策略的其他CPU进行DVFS（动态电压频率调整），则设置此标志。
 	bool			dvfs_possible_from_any_cpu;
 
 	 /* Cached frequency lookup from cpufreq_driver_resolve_freq. */
+	 // 从cpufreq_driver_resolve_freq缓存的频率查找。
 	unsigned int cached_target_freq;
+	// 缓存的已解析索引。
 	int cached_resolved_idx;
 
 	/* Synchronization for frequency transitions */
+	// 跟踪转换状态。
 	bool			transition_ongoing; /* Tracks transition status */
+	// 用于保护频率转换的自旋锁。
 	spinlock_t		transition_lock;
+	// 等待队列头，用于等待频率转换完成。
 	wait_queue_head_t	transition_wait;
+	// 执行转换的任务指针。
 	struct task_struct	*transition_task; /* Task which is doing the transition */
 
 	/* cpufreq-stats */
+	// 指向cpufreq统计信息的指针。
 	struct cpufreq_stats	*stats;
 
 	/* For cpufreq driver's internal use */
+	// 指向驱动程序私有数据的指针，供驱动程序内部使用。
 	void			*driver_data;
 };
 
 /* Only for ACPI */
+// 这些宏定义表示ACPI（高级配置与电源接口）下的CPU频率共享类型
+// 它们描述了如何在共享相同硬件时钟的多个CPU之间协调频率设置
+// CPUFREQ_SHARED_TYPE_NONE (0)：表示没有共享类型，也就是说每个CPU独立地设置频率，不需要协调。
 #define CPUFREQ_SHARED_TYPE_NONE (0) /* None */
+// CPUFREQ_SHARED_TYPE_HW (1)：表示硬件负责必要的协调。在这种情况下，硬件会自动确保在共享时钟的所有CPU之间同步频率设置。
 #define CPUFREQ_SHARED_TYPE_HW	 (1) /* HW does needed coordination */
+// CPUFREQ_SHARED_TYPE_ALL (2)：表示所有依赖的CPU都应设置频率。在这种情况下，当一个CPU尝试更改频率时，所有共享相同硬件时钟的其他CPU也必须相应地更改频率。
 #define CPUFREQ_SHARED_TYPE_ALL	 (2) /* All dependent CPUs should set freq */
+// CPUFREQ_SHARED_TYPE_ANY (3)：表示频率可以从任何依赖的CPU设置。在这种情况下，任何一个共享相同硬件时钟的CPU都可以设置频率，同时其他CPU会自动适应这个变化。
 #define CPUFREQ_SHARED_TYPE_ANY	 (3) /* Freq can be set from any dependent CPU*/
 
 #ifdef CONFIG_CPU_FREQ
@@ -505,20 +565,40 @@ static inline unsigned long cpufreq_scale(unsigned long old, u_int div,
  */
 #define LATENCY_MULTIPLIER		(1000)
 
+// cpufreq_governor表示Linux内核中的一个CPU频率调节策略（也称为“调度器”), 用于实现不同的CPU频率调节策略
+/**
+ * 常见的CPU频率调节策略包括：
+ * 性能（performance）：始终保持最高的CPU频率，以获得最佳性能。
+ * 电源节能（powersave）：尽可能使用较低的CPU频率，以节省电源。
+ * 用户空间（userspace）：允许用户空间应用程序直接设置CPU频率。
+ * 按需（ondemand）：根据CPU负载动态调整CPU频率，以在性能和功耗之间找到平衡。
+ * 保守（conservative）：类似于按需策略，但更倾向于使用较低的频率，以节省电源。
+ */
 struct cpufreq_governor {
+	// name[CPUFREQ_NAME_LEN]：这是一个字符数组，用于存储调度器的名称。其长度由之前定义的常量CPUFREQ_NAME_LEN决定。
 	char	name[CPUFREQ_NAME_LEN];
+	// 指向初始化函数的指针。当启用此调度器时，此函数将被调用。它接受一个cpufreq_policy结构体指针作为参数。
 	int	(*init)(struct cpufreq_policy *policy);
+	// 指向退出函数的指针。当禁用此调度器时，此函数将被调用。它也接受一个cpufreq_policy结构体指针作为参数。
 	void	(*exit)(struct cpufreq_policy *policy);
+	// 指向启动函数的指针。当CPU频率调节策略开始运行时，此函数将被调用。它也接受一个cpufreq_policy结构体指针作为参数。
 	int	(*start)(struct cpufreq_policy *policy);
+	// 指向停止函数的指针。当CPU频率调节策略停止运行时，此函数将被调用。它也接受一个cpufreq_policy结构体指针作为参数。
 	void	(*stop)(struct cpufreq_policy *policy);
+	// 指向限制函数的指针。当调整CPU频率的上限或下限时，此函数将被调用。它也接受一个cpufreq_policy结构体指针作为参数。
 	void	(*limits)(struct cpufreq_policy *policy);
+	// 指向展示设定速度函数的指针。当需要显示当前设定的CPU频率时，此函数将被调用。它接受一个cpufreq_policy结构体指针和一个字符缓冲区指针作为参数。
 	ssize_t	(*show_setspeed)	(struct cpufreq_policy *policy,
 					 char *buf);
+	// 指向存储设定速度函数的指针。当需要设定新的CPU频率时，此函数将被调用。它接受一个cpufreq_policy结构体指针和一个无符号整数作为参数。
 	int	(*store_setspeed)	(struct cpufreq_policy *policy,
 					 unsigned int freq);
 	/* For governors which change frequency dynamically by themselves */
+	// 表示是否为动态切换类型的调度器。动态切换类型的调度器会自行调整CPU频率。
 	bool			dynamic_switching;
+	// 用于将这个调度器添加到内核中的调度器列表中。
 	struct list_head	governor_list;
+	// 表示这个调度器所属的内核模块。当调度器作为一个内核模块被加载时，这个指针将被设置为对应的模块。这有助于处理模块的引用计数，以确保在调度器仍在使用时，模块不会被意外卸载
 	struct module		*owner;
 };
 

@@ -23,9 +23,13 @@ struct device;
 struct device_node;
 struct attribute_group;
 
+// cpu结构体表示一个CPU，包括它所属的节点、热插拔功能以及设备信息。
 struct cpu {
+	// node_id：表示包含CPU的节点ID。在NUMA（Non-Uniform Memory Access，非均匀内存访问）架构中，节点ID用于表示CPU和内存区域之间的拓扑关系。
 	int node_id;		/* The node which contains the CPU */
+	// hotpluggable：表示CPU是否支持热插拔。如果支持热插拔，值为非零，并在sysfs中创建相应的控制文件。热插拔允许在系统运行时添加或删除CPU，而无需关闭系统。
 	int hotpluggable;	/* creates sysfs control file if hotpluggable */
+	// dev：表示与CPU相关的设备信息。device结构体包含有关设备的各种信息，如设备类型、总线类型、驱动程序信息等。这些信息有助于内核正确地管理和控制与CPU相关的设备。
 	struct device dev;
 };
 

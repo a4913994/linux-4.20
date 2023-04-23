@@ -3,6 +3,7 @@
 
 /*
  * cpu_rmap.c: CPU affinity reverse-map support
+ * cpu_rmap.c：CPU亲和力反向映射支持
  * Copyright 2011 Solarflare Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -23,11 +24,17 @@
  * @obj: Pointer to array of object pointers
  * @near: For each CPU, the index and distance to the nearest object,
  *      based on affinity masks
+ * cpu_rmap结构体表示一个CPU的逆映射表，用于表示与CPU相关的对象之间的关系。逆映射表可以加速查找与给定CPU相邻的其他CPU或对象的过程
  */
 struct cpu_rmap {
+	// refcount：表示此逆映射表的引用计数。当引用计数变为0时，可以安全地释放这个结构体。
 	struct kref	refcount;
+	// size：表示逆映射表的大小。这是逆映射表可容纳的对象数量
+	// used：表示逆映射表中当前已用的对象数量
 	u16		size, used;
+	// 表示一个指向对象指针数组的指针。这些对象通常是其他CPU或与CPU相关的设备
 	void		**obj;
+	// 表示一个包含有关相邻对象的数组。每个元素包含一个索引，表示obj数组中相邻对象的位置，以及一个距离值，表示给定CPU与相邻对象之间的距离。数组的大小由size决定。
 	struct {
 		u16	index;
 		u16	dist;

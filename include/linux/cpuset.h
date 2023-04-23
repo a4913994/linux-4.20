@@ -30,7 +30,13 @@
  * begin() still would see cpusets_enabled() as false. The enabled -> disabled
  * transition should happen in reverse order for the same reasons (want to stop
  * looking at real value of mems_allowed.sequence in retry() first).
+ * 对于给定的密钥，静态分支重写可能以任意顺序发生。在代码路径中，我们需要使用read_mems_allowed_begin()和
+ * read_mems_allowed_retry()循环来获取mems_allowed的一致视图时，我们需要确保在禁用->启用的转换中，始终在retry()之前重写begin()。
+ * 如果不是这样，那么如果在循环周围禁用本地irqs，我们可能会死锁，因为retry()总是将mems_allowed序列计数的最新值与0进行比较，
+ * 而begin()仍将cpusets_enabled()视为false。出于相同的原因，
+ * 启用->禁用的转换应以相反的顺序发生（希望先在retry()中停止查看mems_allowed.sequence的实际值）。
  */
+
 extern struct static_key_false cpusets_pre_enable_key;
 extern struct static_key_false cpusets_enabled_key;
 static inline bool cpusets_enabled(void)

@@ -6,6 +6,8 @@
  * Cpumasks provide a bitmap suitable for representing the
  * set of CPU's in a system, one bit position per CPU number.  In general,
  * only nr_cpu_ids (<= NR_CPUS) bits are valid.
+ * Cpumask（CPU掩码）提供了一个位图，用于表示系统中的CPU集合，每个CPU编号对应一个位。
+ * 一般来说，只有nr_cpu_ids（<= NR_CPUS）个位是有效的
  */
 #include <linux/kernel.h>
 #include <linux/threads.h>
@@ -17,6 +19,7 @@ typedef struct cpumask { DECLARE_BITMAP(bits, NR_CPUS); } cpumask_t;
 
 /**
  * cpumask_bits - get the bits in a cpumask
+ * 获取cpumask中的位。传入参数为一个struct cpumask指针，返回值是指向该cpumask中位的指针。由于该函数是一个宏，所以可以保证const正确。
  * @maskp: the struct cpumask *
  *
  * You should only assume nr_cpu_ids bits of this mask are valid.  This is
