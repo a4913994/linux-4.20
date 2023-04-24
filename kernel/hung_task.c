@@ -2,6 +2,7 @@
  * Detect Hung Task
  *
  * kernel/hung_task.c - kernel thread for detecting tasks stuck in D state
+ * kernel/hung_task.c -用于检测卡在 D 状态的任务的内核线程
  *
  */
 
@@ -24,25 +25,30 @@
 
 /*
  * The number of tasks checked:
+ * 已检查的任务数
  */
 int __read_mostly sysctl_hung_task_check_count = PID_MAX_LIMIT;
 
 /*
  * Limit number of tasks checked in a batch.
+ 限制批量检查的任务数量。
  *
  * This value controls the preemptibility of khungtaskd since preemption
  * is disabled during the critical section. It also controls the size of
  * the RCU grace period. So it needs to be upper-bound.
+ * 这个值控制 khungtaskd 的可抢占性，因为在关键区域内禁用了抢占。它还控制了 RCU 优雅期的大小。因此，它需要有上限。
  */
 #define HUNG_TASK_BATCHING 1024
 
 /*
  * Zero means infinite timeout - no checking done:
+ * 零表示超时时间无限 - 不进行任何检查：
  */
 unsigned long __read_mostly sysctl_hung_task_timeout_secs = CONFIG_DEFAULT_HUNG_TASK_TIMEOUT;
 
 /*
  * Zero (default value) means use sysctl_hung_task_timeout_secs:
+ * 零（默认值）表示使用 sysctl_hung_task_timeout_secs
  */
 unsigned long __read_mostly sysctl_hung_task_check_interval_secs;
 
@@ -57,10 +63,13 @@ static struct task_struct *watchdog_task;
 /*
  * Should we panic (and reboot, if panic_timeout= is set) when a
  * hung task is detected:
+ * 用于设置当内核检测到一个进程耗费了过多的 CPU 时间，而且无法恢复时是否应该触发系统崩溃。
  */
 unsigned int __read_mostly sysctl_hung_task_panic =
 				CONFIG_BOOTPARAM_HUNG_TASK_PANIC_VALUE;
 
+// hung_task_panic_setup 函数用于解析传递给内核启动参数 hung_task_panic 的值，并将其存储在 sysctl_hung_task_panic 中。
+// 如果无法解析传递的参数，该函数将返回错误。否则，它将返回 1 表示成功添加内核启动参数。
 static int __init hung_task_panic_setup(char *str)
 {
 	int rc = kstrtouint(str, 0, &sysctl_hung_task_panic);
@@ -69,6 +78,7 @@ static int __init hung_task_panic_setup(char *str)
 		return rc;
 	return 1;
 }
+// hung_task_panic_setup 函数注册为内核启动参数 hung_task_panic 的处理函数。当内核启动时，如果传递了该参数，该函数将被调用来设置 sysctl_hung_task_panic 的值。
 __setup("hung_task_panic=", hung_task_panic_setup);
 
 static int

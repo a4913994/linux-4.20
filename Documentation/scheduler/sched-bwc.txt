@@ -1,11 +1,14 @@
 CFS Bandwidth Control
+CFS带宽控制
 =====================
 
 [ This document only discusses CPU bandwidth control for SCHED_NORMAL.
   The SCHED_RT case is covered in Documentation/scheduler/sched-rt-group.txt ]
+  本文档仅讨论SCHED_NORMAL的CPU带宽控制。SCHED_RT的情况在Documentation/scheduler/sched-rt-group.txt中讨论
 
 CFS bandwidth control is a CONFIG_FAIR_GROUP_SCHED extension which allows the
 specification of the maximum CPU bandwidth available to a group or hierarchy.
+CFS带宽控制是CONFIG_FAIR_GROUP_SCHED扩展，它允许指定组或层次结构可用的最大CPU带宽。
 
 The bandwidth allowed for a group is specified using a quota and period. Within
 each given "period" (microseconds), a group is allowed to consume only up to
@@ -13,19 +16,28 @@ each given "period" (microseconds), a group is allowed to consume only up to
 group exceeds this limit (for that period), the tasks belonging to its
 hierarchy will be throttled and are not allowed to run again until the next
 period.
+指定组许可的带宽使用配额和周期。在每个给定的“周期”（微秒）内，组只允许消耗不超过“配额”微秒的CPU时间。
+当组的CPU带宽消耗超过该限制（该周期），其层次结构所属的任务将被限制，并且在下一个周期之前不允许再次运行。
 
 A group's unused runtime is globally tracked, being refreshed with quota units
 above at each period boundary.  As threads consume this bandwidth it is
 transferred to cpu-local "silos" on a demand basis.  The amount transferred
 within each of these updates is tunable and described as the "slice".
+组的未使用的运行时间在全局范围内进行跟踪，每个周期边界处使用的配额单位进行刷新。当线程消耗该带宽时，
+它会根据需求转移到本地CPU“私有池”中。每个更新中传输的数量是可调的，并被描述为“切片”。
 
 Management
+管理
 ----------
 Quota and period are managed within the cpu subsystem via cgroupfs.
+配额和周期通过cgroupfs在CPU子系统中管理。
 
 cpu.cfs_quota_us: the total available run-time within a period (in microseconds)
 cpu.cfs_period_us: the length of a period (in microseconds)
 cpu.stat: exports throttling statistics [explained further below]
+cpu.cfs_quota_us：周期内总可用运行时间（以微秒为单位）
+cpu.cfs_period_us：周期的长度（以微秒为单位）
+cpu.stat：导出限制统计信息[下面有进一步的解释]
 
 The default values are:
 	cpu.cfs_period_us=100ms
@@ -35,45 +47,57 @@ A value of -1 for cpu.cfs_quota_us indicates that the group does not have any
 bandwidth restriction in place, such a group is described as an unconstrained
 bandwidth group.  This represents the traditional work-conserving behavior for
 CFS.
+cpu.cfs_quota_us的值为-1表示该组没有任何带宽限制，这样的组被描述为无限制带宽组。这代表了CFS的传统的工作保守行为。
 
 Writing any (valid) positive value(s) will enact the specified bandwidth limit.
 The minimum quota allowed for the quota or period is 1ms.  There is also an
 upper bound on the period length of 1s.  Additional restrictions exist when
 bandwidth limits are used in a hierarchical fashion, these are explained in
 more detail below.
+写入任何（有效的）正值都将实施指定的带宽限制。配额或周期允许的最小配额为1毫秒。周期长度的上限也为1秒。
+当带宽限制以分层方式使用时，还存在其他限制，这些将在下面更详细地解释。
 
 Writing any negative value to cpu.cfs_quota_us will remove the bandwidth limit
 and return the group to an unconstrained state once more.
+将任何负值写入cpu.cfs_quota_us将移除带宽限制，并再次将该组返回为无限制状态。
 
 Any updates to a group's bandwidth specification will result in it becoming
 unthrottled if it is in a constrained state.
+如果处于受限状态，对组带宽规范的任何更新都将导致它变为未限制状态
 
 System wide settings
+系统范围的设置
 --------------------
 For efficiency run-time is transferred between the global pool and CPU local
 "silos" in a batch fashion.  This greatly reduces global accounting pressure
 on large systems.  The amount transferred each time such an update is required
 is described as the "slice".
+为了提高效率，运行时间以批量方式在全局池和CPU本地“筒仓”之间传输。这极大地减轻了大型系统的全局账户压力。
+每次需要进行此类更新时传输的数量被描述为“时间片（slice）”。
 
 This is tunable via procfs:
 	/proc/sys/kernel/sched_cfs_bandwidth_slice_us (default=5ms)
 
 Larger slice values will reduce transfer overheads, while smaller values allow
 for more fine-grained consumption.
+较大的时间片值将减少传输开销，而较小的值则允许更精细的消耗。
 
 Statistics
+统计
 ----------
 A group's bandwidth statistics are exported via 3 fields in cpu.stat.
+群组的带宽统计数据通过cpu.stat中的3个字段进行导出。
 
 cpu.stat:
-- nr_periods: Number of enforcement intervals that have elapsed.
-- nr_throttled: Number of times the group has been throttled/limited.
-- throttled_time: The total time duration (in nanoseconds) for which entities
+- nr_periods: Number of enforcement intervals that have elapsed. // nr_periods：已过执行间隔的数量。
+- nr_throttled: Number of times the group has been throttled/limited. // nr_throttled：组被限制/限制的次数。
+- throttled_time: The total time duration (in nanoseconds) for which entities // throttled_time：组的实体被限制的总时间长度（以纳秒为单位）。
   of the group have been throttled.
 
 This interface is read-only.
 
 Hierarchical considerations
+层次结构考虑
 ---------------------------
 The interface enforces that an individual entity's bandwidth is always
 attainable, that is: max(c_i) <= C. However, over-subscription in the
@@ -81,42 +105,54 @@ aggregate case is explicitly allowed to enable work-conserving semantics
 within a hierarchy.
   e.g. \Sum (c_i) may exceed C
 [ Where C is the parent's bandwidth, and c_i its children ]
-
+该接口强制执行个体实体的带宽始终是可达到的，即：max(c_i)<=C。然而，在聚合情况下，超额订阅是明确允许的，以在层次结构内提供工作保留的语义。例如，\ Sum（c_i）可能超过C [其中C是父带宽，c_i是其子代]。
 
 There are two ways in which a group may become throttled:
 	a. it fully consumes its own quota within a period
 	b. a parent's quota is fully consumed within its period
+一个群组可能受到限制的两种方式如下：
+	a. 在一段时间内，完全消耗了自己的配额。
+	b. 父级的配额在其时间段内被完全消耗。
 
 In case b) above, even though the child may have runtime remaining it will not
 be allowed to until the parent's runtime is refreshed.
+在上面的b）情况下，即使子节点的运行时间还剩余，直到父节点的运行时间被刷新，子节点也不被允许执行。
 
 Examples
 --------
 1. Limit a group to 1 CPU worth of runtime.
+将一个群组的运行时间限制为1个 CPU 的时长。
 
 	If period is 250ms and quota is also 250ms, the group will get
 	1 CPU worth of runtime every 250ms.
+	如果时间段为250毫秒，配额也为250毫秒，则该群组将每250毫秒获得1个 CPU 的时长。
 
 	# echo 250000 > cpu.cfs_quota_us /* quota = 250ms */
 	# echo 250000 > cpu.cfs_period_us /* period = 250ms */
 
 2. Limit a group to 2 CPUs worth of runtime on a multi-CPU machine.
+在多 CPU 的计算机上，将一个群组的运行时间限制为 2 个 CPU 的时长。
 
 	With 500ms period and 1000ms quota, the group can get 2 CPUs worth of
 	runtime every 500ms.
+	设时间段为 500 毫秒，配额为 1000 毫秒，则该群组可以享受每隔 500 毫秒就获得 2 个 CPU 时长。
 
 	# echo 1000000 > cpu.cfs_quota_us /* quota = 1000ms */
 	# echo 500000 > cpu.cfs_period_us /* period = 500ms */
 
 	The larger period here allows for increased burst capacity.
+	此处的更长时间段允许更大的突发容量。
 
 3. Limit a group to 20% of 1 CPU.
+将该群组的 CPU 上限限制为 1
 
 	With 50ms period, 10ms quota will be equivalent to 20% of 1 CPU.
+	如果周期为50ms，则10ms的配额相当于1个CPU的20%。
 
 	# echo 10000 > cpu.cfs_quota_us /* quota = 10ms */
 	# echo 50000 > cpu.cfs_period_us /* period = 50ms */
 
 	By using a small period here we are ensuring a consistent latency
 	response at the expense of burst capacity.
+	在这里使用小周期，我们确保了反应时间的一致性，但也牺牲了突发容量。
 

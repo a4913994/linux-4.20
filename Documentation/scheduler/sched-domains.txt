@@ -2,6 +2,8 @@ Each CPU has a "base" scheduling domain (struct sched_domain). The domain
 hierarchy is built from these base domains via the ->parent pointer. ->parent
 MUST be NULL terminated, and domain structures should be per-CPU as they are
 locklessly updated.
+每个CPU都有一个“base”调度域（sched_domain结构）。通过->parent指针从这些基础域构建域层次结构。 
+->parent必须以NULL结尾，并且域结构应该是每个CPU的，因为它们是无锁更新的。
 
 Each scheduling domain spans a number of CPUs (stored in the ->span field).
 A domain's span MUST be a superset of it child's span (this restriction could
@@ -11,6 +13,10 @@ although strictly it doesn't have to, but this could lead to a case where some
 CPUs will never be given tasks to run unless the CPUs allowed mask is
 explicitly set. A sched domain's span means "balance process load among these
 CPUs".
+每个调度域涵盖若干个CPU（存储在 - >span 字段中）。
+调度域的跨度必须是其子域的超集（如果需要，可以放松此限制），而 CPU i 的基础域必须至少跨越i个CPU。
+每个CPU的顶层域通常会涵盖系统中的所有CPU，尽管严格来说不必如此，但这可能导致某些CPU永远不会被分配任务运行，
+除非显式设置CPU允许的掩码。调度域的跨度意味着“在这些CPU之间平衡进程负载”。
 
 Each scheduling domain must have one or more CPU groups (struct sched_group)
 which are organised as a circular one way linked list from the ->groups
@@ -19,17 +25,25 @@ domain's span. The intersection of cpumasks from any two of these groups
 MUST be the empty set. The group pointed to by the ->groups pointer MUST
 contain the CPU to which the domain belongs. Groups may be shared among
 CPUs as they contain read only data after they have been set up.
+每个调度域必须拥有一个或多个CPU组（sched_group结构），它们以从->groups指针开始的循环单向链表的形式组织。
+这些组的cpumasks的并集必须与域的跨度相同。这些组任意两个之间cpumasks的交集必须为空集。
+->groups指针指向的组必须包含该域所属的CPU。组可以在设置好后被多个CPU共享，因为它们包含只读数据。
 
 Balancing within a sched domain occurs between groups. That is, each group
 is treated as one entity. The load of a group is defined as the sum of the
 load of each of its member CPUs, and only when the load of a group becomes
 out of balance are tasks moved between groups.
+在调度域内部的平衡发生在组之间。也就是说，每个组被视为一个实体。
+一个组的负载是其每个CPU成员的负载之和，只有当一个组的负载不平衡时，才会在组之间移动任务。
 
 In kernel/sched/core.c, trigger_load_balance() is run periodically on each CPU
 through scheduler_tick(). It raises a softirq after the next regularly scheduled
 rebalancing event for the current runqueue has arrived. The actual load
 balancing workhorse, run_rebalance_domains()->rebalance_domains(), is then run
 in softirq context (SCHED_SOFTIRQ).
+在kernel/sched/core.c中，trigger_load_balance() 通过scheduler_tick() 定期在每个CPU上运行。
+在当前运行队列的下一个定期平衡事件到达后，它会引发一个软中断。实际的负载平衡工作hourse，run_rebalance_domains() -> rebalance_domains()，
+然后在软中断上下文（SCHED_SOFTIRQ）中运行。
 
 The latter function takes two arguments: the current CPU and whether it was idle
 at the time the scheduler_tick() happened and iterates over all sched domains
@@ -38,6 +52,7 @@ While doing that, it checks to see if the current domain has exhausted its
 rebalance interval. If so, it runs load_balance() on that domain. It then checks
 the parent sched_domain (if it exists), and the parent of the parent and so
 forth.
+后面的函数接受两个参数：当前CPU及其在scheduler_tick()发生时是否处于空闲状态，并迭代我们的CPU所在的所有调度域，从其基本域开始，并向上遍历->parent链。在进行此操作时，它会检查当前域是否已用尽其平衡间隔。如果是，则在该域上运行load_balance()。然后它会检查父调度域（如果存在），以及父级的父级等。
 
 Initially, load_balance() finds the busiest group in the current sched domain.
 If it succeeds, it looks for the busiest runqueue of all the CPUs' runqueues in
@@ -45,33 +60,47 @@ that group. If it manages to find such a runqueue, it locks both our initial
 CPU's runqueue and the newly found busiest one and starts moving tasks from it
 to our runqueue. The exact number of tasks amounts to an imbalance previously
 computed while iterating over this sched domain's groups.
+最初，load_balance() 找到当前调度域中最繁忙的组。如果成功，它将在该组的所有CPU运行队列中寻找最繁忙的运行队列。
+如果成功找到这样一个运行队列，它将锁定我们初始CPU的运行队列和新发现的最繁忙的运行队列，并开始将任务从其中一个运行队列移动到我们的运行队列。
+具体任务数量来自在迭代该调度域的组时计算出的不平衡量。
 
 *** Implementing sched domains ***
 The "base" domain will "span" the first level of the hierarchy. In the case
 of SMT, you'll span all siblings of the physical CPU, with each group being
 a single virtual CPU.
+“基本”域将“跨越”层次结构的第一层。在SMT的情况下，您将跨越物理CPU的所有同级处理器，每个组都是一个单独的虚拟CPU。
 
 In SMP, the parent of the base domain will span all physical CPUs in the
 node. Each group being a single physical CPU. Then with NUMA, the parent
 of the SMP domain will span the entire machine, with each group having the
 cpumask of a node. Or, you could do multi-level NUMA or Opteron, for example,
 might have just one domain covering its one NUMA level.
+在SMP中，基本域的父级将跨越节点中的所有物理CPU，每个组都是一个单独的物理CPU。然后在NUMA中，SMP域的父级将跨越整个计算机，
+每个组都具有一个节点的cpumask。或者，您可以进行多级NUMA，例如，Opteron可能只有一个覆盖其一个NUMA级别的域。
 
 The implementor should read comments in include/linux/sched.h:
 struct sched_domain fields, SD_FLAG_*, SD_*_INIT to get an idea of
 the specifics and what to tune.
+实现者应该阅读include/linux/sched.h中的注释：struct sched_domain字段、SD_FLAG_、SD__INIT，以了解具体细节和需要调整的内容。
 
 Architectures may retain the regular override the default SD_*_INIT flags
 while using the generic domain builder in kernel/sched/core.c if they wish to
 retain the traditional SMT->SMP->NUMA topology (or some subset of that). This
 can be done by #define'ing ARCH_HASH_SCHED_TUNE.
+如果体系结构希望保留传统的SMT->SMP->NUMA拓扑结构（或一部分），则可以在内核/kernel/sched/core.c中使用通用域构建器，
+同时保留常规的SD_*_INIT标志或者覆盖默认值。这可以通过 #define ARCH_HASH_SCHED_TUNE 来实现。
 
 Alternatively, the architecture may completely override the generic domain
 builder by #define'ing ARCH_HASH_SCHED_DOMAIN, and exporting your
 arch_init_sched_domains function. This function will attach domains to all
 CPUs using cpu_attach_domain.
+另外，体系结构也可以通过 #define ARCH_HASH_SCHED_DOMAIN 来完全覆盖通用的域构建器，
+并导出您的 arch_init_sched_domains 函数。这个函数会使用 cpu_attach_domain 来将域附加到所有 CPU 上。
 
 The sched-domains debugging infrastructure can be enabled by enabling
 CONFIG_SCHED_DEBUG. This enables an error checking parse of the sched domains
 which should catch most possible errors (described above). It also prints out
 the domain structure in a visual format.
+可以通过启用 CONFIG_SCHED_DEBUG 来启用sched-domains调试基础设施。
+这将启用对sched域的错误检查解析，可以捕捉到大多数可能的错误（如上所述）。
+它还会以可视化格式打印出domain结构。

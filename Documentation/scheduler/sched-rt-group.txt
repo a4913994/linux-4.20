@@ -1,4 +1,5 @@
 				Real-Time group scheduling
+        实时组调度（Real-Time group scheduling）
 				--------------------------
 
 CONTENTS
@@ -20,17 +21,20 @@ CONTENTS
 
  Fiddling with these settings can result in an unstable system, the knobs are
  root only and assumes root knows what he is doing.
+ 调整这些设置可能导致系统不稳定，这些按钮只有root用户可以操作，并且假定root用户知道自己在做什么。
 
 Most notable:
 
  * very small values in sched_rt_period_us can result in an unstable
    system when the period is smaller than either the available hrtimer
    resolution, or the time it takes to handle the budget refresh itself.
+   当sched_rt_period_us的值非常小且周期小于可用的hrtimer分辨率或处理预算刷新本身所需的时间时，可能会导致系统不稳定。
 
  * very small values in sched_rt_runtime_us can result in an unstable
    system when the runtime is so small the system has difficulty making
    forward progress (NOTE: the migration thread and kstopmachine both
    are real-time processes).
+   当sched_rt_runtime_us的值非常小且运行时间太短时，系统可能难以向前进展，从而导致系统不稳定（请注意：迁移线程和kstopmachine均为实时进程）。
 
 1. Overview
 ===========
@@ -45,6 +49,8 @@ multiple groups of realtime tasks, each group must be assigned a fixed portion
 of the CPU time available.  Without a minimum guarantee a realtime group can
 obviously fall short. A fuzzy upper limit is of no use since it cannot be
 relied upon. Which leaves us with just the single fixed portion.
+实时调度是关于确定性的，一个组必须能够依赖可用带宽的数量（例如，CPU时间）是恒定的。为了调度多组实时任务，
+每个组必须被分配固定的CPU时间比例。如果没有最低保证，实时组显然会不足。模糊的上限没有用处，因为它是不可靠的。这就使我们只有一个固定的部分。
 
 1.2 The solution
 ----------------

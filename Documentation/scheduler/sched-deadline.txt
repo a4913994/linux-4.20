@@ -1,4 +1,5 @@
 			  Deadline Task Scheduling
+        截止日期任务调度
 			  ------------------------
 
 CONTENTS
@@ -32,6 +33,7 @@ CONTENTS
  Fiddling with these settings can result in an unpredictable or even unstable
  system behavior. As for -rt (group) scheduling, it is assumed that root users
  know what they're doing.
+ 调整这些设置可能导致不可预测甚至不稳定的系统行为。至于实时（组）调度，假定root用户知道他们在做什么。
 
 
 1. Overview
