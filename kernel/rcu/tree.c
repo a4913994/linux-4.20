@@ -1370,7 +1370,7 @@ static void check_cpu_stall(struct rcu_data *rdp)
 	j = jiffies;
 
 	/*
-	 * Lots of memory barriers to reject false positives.
+	 * Lots of memory barriers to reject false positives. 有很多内存屏障去拒绝虚报。
 	 *
 	 * The idea is to pick up rcu_state.gp_seq, then
 	 * rcu_state.jiffies_stall, then rcu_state.gp_start, and finally
@@ -1383,9 +1383,14 @@ static void check_cpu_stall(struct rcu_data *rdp)
 	 * and another starts between these two fetches.  This is detected
 	 * by comparing the second fetch of rcu_state.gp_seq with the
 	 * previous fetch from rcu_state.gp_seq.
-	 *
+	 * 理念是挑选出 rcu_state.gp_seq，然后是 rcu_state.jiffies_stall，接着是 rcu_state.gp_start，最后是 rcu_state.gp_seq 的另一个副本。
+	 * 在优雅期初始化和清理期间，使用内存屏障（或等效的）在相反的顺序更新这些值。现在，如果我们获取了 rcu_state.gp_start 的新值和 rcu_state.jiffies_stall 的旧值，那么就可能发生错误报告
+	 * 但是，鉴于这些内存屏障，唯一能够发生这种情况的方式是在这两个获取之间一个优雅期结束并且另一个优雅期开始。
+	 * 这可以通过将 rcu_state.gp_seq 的第二个获取与从 rcu_state.gp_seq 中获取的上一个获取进行比较来检测到
+	 * 
 	 * Given this check, comparisons of jiffies, rcu_state.jiffies_stall,
 	 * and rcu_state.gp_start suffice to forestall false positives.
+	 * 给定此检查，对于 jiffies、rcu_state.jiffies_stall 和 rcu_state.gp_start 的比较就足以防止虚报。
 	 */
 	gs1 = READ_ONCE(rcu_state.gp_seq);
 	smp_rmb(); /* Pick up ->gp_seq first... */

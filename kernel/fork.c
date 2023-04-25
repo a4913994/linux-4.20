@@ -639,6 +639,13 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 #define mm_free_pgd(mm)
 #endif /* CONFIG_MMU */
 
+/*
+check_mm(struct mm_struct *mm) 用于检查给定的进程的内存管理数据结构中的状态，以确保其完整性。
+该函数首先遍历 mm_struct 中的 NR_MM_COUNTERS 个计数器（rss_stat.count），并检查每个计数器的状态是否正确。如果任何一个计数器有意外的值（不为0），则会通过 printk 发出警告信息来提示错误情况。这些计数器可以用于执行内核统计或监控某个进程使用的内存量。
+接下来，该函数还检查 pgtables_bytes 是否为0，如果不是，则表示在释放 mm_struct 时，内存页表被泄漏了。
+最后，如果启用了 CONFIG_TRANSPARENT_HUGEPAGE 并且没有使用 USE_SPLIT_PMD_PTLOCKS，则会检查是否存在大页面（huge pages），以确保指针指向正确的位置。
+总之，该函数用于确保系统在处理进程的内存管理时不会出现任何异常情况，以保证系统稳定性和安全性。
+*/
 static void check_mm(struct mm_struct *mm)
 {
 	int i;

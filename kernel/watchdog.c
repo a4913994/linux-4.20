@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Detect hard and soft lockups on a system
+ * 检测系统上的硬锁定和软锁定
  *
  * started by Don Zickus, Copyright (C) 2010 Red Hat, Inc.
  *
@@ -8,6 +9,8 @@
  * detector, so thanks to Ingo for the initial implementation.
  * Some chunks also taken from the old x86-specific nmi watchdog code, thanks
  * to those contributors as well.
+ * 注意：这段代码大部分是从原来的 softlockup 大量借用的检测器，感谢 Ingo 的初始实施。
+ * 一些块也取自旧的 x86 特定的 nmi 看门狗代码，谢谢也对那些贡献者。
  */
 
 #define pr_fmt(fmt) "watchdog: " fmt
@@ -62,6 +65,9 @@ unsigned int __read_mostly hardlockup_panic =
  * function should only be executed once by the boot processor before the
  * kernel command line parameters are parsed, because otherwise it is not
  * possible to override this in hardlockup_panic_setup().
+ * 我们可能不希望在所有情况下都默认启用硬锁定检测，例如在虚拟机监控程序上运行内核时。
+ * 在这些情况下，可以调用此函数来禁用硬锁定检测。
+ * 该函数应该由启动处理器在解析内核命令行参数之前仅执行一次， 否则就无法在 hardlockup_panic_setup() 中覆盖此设置了。
  */
 void __init hardlockup_detector_disable(void)
 {
@@ -97,10 +103,13 @@ __setup("hardlockup_all_cpu_backtrace=", hardlockup_all_cpu_backtrace_setup);
 /*
  * These functions can be overridden if an architecture implements its
  * own hardlockup detector.
+ * 如果架构实现了自己的硬锁定检测器，这些函数可以被覆盖。
  *
  * watchdog_nmi_enable/disable can be implemented to start and stop when
  * softlockup watchdog threads start and stop. The arch must select the
  * SOFTLOCKUP_DETECTOR Kconfig.
+ * watchdog_nmi_enable/disable 可以在软锁定看门狗线程启动和停止时实现启动和停止。
+ * 架构必须选择 SOFTLOCKUP_DETECTOR Kconfig。
  */
 int __weak watchdog_nmi_enable(unsigned int cpu)
 {
@@ -114,6 +123,7 @@ void __weak watchdog_nmi_disable(unsigned int cpu)
 }
 
 /* Return 0, if a NMI watchdog is available. Error code otherwise */
+// 如果 NMI 看门狗可用，则返回 0。否则错误代码
 int __weak __init watchdog_nmi_probe(void)
 {
 	return hardlockup_detector_perf_init();
@@ -121,6 +131,7 @@ int __weak __init watchdog_nmi_probe(void)
 
 /**
  * watchdog_nmi_stop - Stop the watchdog for reconfiguration
+ * watchdog_nmi_stop -停止看门狗以进行重新配置
  *
  * The reconfiguration steps are:
  * watchdog_nmi_stop();

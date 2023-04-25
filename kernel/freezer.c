@@ -32,6 +32,7 @@ static DEFINE_SPINLOCK(freezer_lock);
 
 /**
  * freezing_slow_path - slow path for testing whether a task needs to be frozen
+ * freezing_slow_path - 用于测试任务是否需要被冻结的缓慢路径
  * @p: task to be tested
  *
  * This function is called by freezing() if system_freezing_cnt isn't zero

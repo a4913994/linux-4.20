@@ -1,5 +1,6 @@
 /*
  * Read-Copy Update definitions shared among RCU implementations.
+ * 在 RCU 实现之间共享的读-拷贝更新定义。
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -70,6 +71,7 @@ static inline void rcu_seq_set_state(unsigned long *sp, int newstate)
 }
 
 /* Adjust sequence number for start of update-side operation. */
+/* 调整更新端操作开始的序列号 */
 static inline void rcu_seq_start(unsigned long *sp)
 {
 	WRITE_ONCE(*sp, *sp + 1);
@@ -78,6 +80,7 @@ static inline void rcu_seq_start(unsigned long *sp)
 }
 
 /* Compute the end-of-grace-period value for the specified sequence number. */
+/*计算指定序列号的宽限期结束值。 */
 static inline unsigned long rcu_seq_endval(unsigned long *sp)
 {
 	return (*sp | RCU_SEQ_STATE_MASK) + 1;
