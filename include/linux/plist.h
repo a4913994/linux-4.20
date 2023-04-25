@@ -1,5 +1,6 @@
 /*
  * Descending-priority-sorted double-linked list
+ * 降序优先级排序的双链表
  *
  * (C) 2002-2003 Intel Corp
  * Inaky Perez-Gonzalez <inaky.perez-gonzalez@intel.com>.

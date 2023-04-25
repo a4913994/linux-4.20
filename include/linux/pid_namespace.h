@@ -21,16 +21,26 @@ enum { /* definitions for pid_namespace's hide_pid field */
 	HIDEPID_INVISIBLE = 2,
 };
 
+// pid_namespace，该结构体用于表示进程 ID 的命名空间
 struct pid_namespace {
+	// kref：用于为该命名空间维护引用计数和内存管理
 	struct kref kref;
+	// idr：用于管理该命名空间中的所有进程 ID
 	struct idr idr;
+	// rcu: 用于实现读-写锁机制
 	struct rcu_head rcu;
+	// pid_allocated：该命名空间分配的进程 ID 数量
 	unsigned int pid_allocated;
+	// child_reaper：一个指向负责回收孤儿进程的进程的指针
 	struct task_struct *child_reaper;
+	// pid_cachep：该命名空间分配进程 ID 使用的 kmem 缓存
 	struct kmem_cache *pid_cachep;
+	// level：该命名空间的层级，用于表示进程 ID 可能的用途（如进程 ID，进程组 ID 等等）
 	unsigned int level;
+	// parent：指向该命名空间的父命名空间
 	struct pid_namespace *parent;
 #ifdef CONFIG_PROC_FS
+	// proc_mnt / proc_self / proc_thread_self：用于管理原始进程和线程状态信息的 procfs 文件系统的相关信息（可选）
 	struct vfsmount *proc_mnt;
 	struct dentry *proc_self;
 	struct dentry *proc_thread_self;
@@ -38,12 +48,19 @@ struct pid_namespace {
 #ifdef CONFIG_BSD_PROCESS_ACCT
 	struct fs_pin *bacct;
 #endif
+	// user_ns：与该命名空间关联的用户命名空间
 	struct user_namespace *user_ns;
+	// ucounts：与该命名空间关联的计数器列表，保存关于该命名空间使用的各种资源的信息
 	struct ucounts *ucounts;
+	// proc_work：用于异步操作 procfs 文件系统的工作项
 	struct work_struct proc_work;
+	// pid_gid：用于管理该命名空间的进程 ID 的组 ID
 	kgid_t pid_gid;
+	// hide_pid：用于指定是否公开该命名空间中的进程 ID
 	int hide_pid;
+	// reboot：用于保存进程 ID 命名空间的重启状态信息
 	int reboot;	/* group exit code if this pidns was rebooted */
+	// ns：该命名空间的通用命名空间结构
 	struct ns_common ns;
 } __randomize_layout;
 

@@ -13,19 +13,33 @@
 
 struct seq_operations;
 
+// seq_file: 它被用于读取 Linux 内核部分的信息，例如 /proc 文件下的信息
 struct seq_file {
+	// buf：字符数组指针，用于缓存待输出的信息。
 	char *buf;
+	// size：表示 buf 缓存的信息大小。
 	size_t size;
+	// from：每次输出信息时的起始点。
 	size_t from;
+	// count：表示每次输出信息的容量，相当于每次读取文件的大小。
 	size_t count;
+	// pad_until：输出信息时，要求一个地址结构体的字节对齐地址。
 	size_t pad_until;
+	// index：当前读取信息的索引位置。
 	loff_t index;
+	// read_pos：指向当前读取的信息位置。
 	loff_t read_pos;
+	// version：用于表示信息的版本号。
 	u64 version;
+	// lock：用于保护多个进程并发访问相同的 seq_file 结构体。
 	struct mutex lock;
+	// op：指向 seq_operations 结构体的指针。该结构体中包括了读取信息和释放信息占用资源的操作。
 	const struct seq_operations *op;
+	// poll_event：表示程序是否可以阻塞等待信息的到来。
 	int poll_event;
+	// file：包含了 seq_file 结构体的相关信息，例如文件名和文件权限等。
 	const struct file *file;
+	// private：指向调用者提供的私有数据结构的指针。
 	void *private;
 };
 

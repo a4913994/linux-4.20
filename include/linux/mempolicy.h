@@ -22,37 +22,63 @@ struct mm_struct;
 
 /*
  * Describe a memory policy.
+ * 描述内存策略。
  *
  * A mempolicy can be either associated with a process or with a VMA.
  * For VMA related allocations the VMA policy is preferred, otherwise
  * the process policy is used. Interrupts ignore the memory policy
  * of the current process.
+ * 一个内存策略可以与进程或者 VMA 相关联。对于 VMA 相关的内存分配，VMA 策略被优先选择，否则会使用进程策略。中断会忽略当前进程的内存策略。
  *
  * Locking policy for interlave:
+ * 交错锁定策略：
+ * 
  * In process context there is no locking because only the process accesses
  * its own state. All vma manipulation is somewhat protected by a down_read on
  * mmap_sem.
+ * 在进程上下文中，没有锁定，因为只有进程能访问自己的状态。所有 VMA 操作都进行了 mmap_sem 的 down_read 保护。
  *
  * Freeing policy:
+ * 释放策略：
+ * 
  * Mempolicy objects are reference counted.  A mempolicy will be freed when
  * mpol_put() decrements the reference count to zero.
+ * Mempolicy 对象是引用计数的。当 mpol_put() 函数将引用计数减为0时，该 mempolicy 将被释放。
  *
  * Duplicating policy objects:
+ * 复制策略对象：
  * mpol_dup() allocates a new mempolicy and copies the specified mempolicy
  * to the new storage.  The reference count of the new object is initialized
  * to 1, representing the caller of mpol_dup().
+ * mpol_dup() 函数会分配一个新的 mempolicy，并将指定的 mempolicy 复制到新的内存中。新对象的引用计数被初始化为 1，表示 mpol_dup() 的调用方。
  */
 struct mempolicy {
+	// refcnt：引用计数器，用于管理该结构体的生命周期。
 	atomic_t refcnt;
+	// mode：内存策略模式，可以是以下之一：
+	// MPOL_DEFAULT：使用系统默认的内存策略。
+	// MPOL_PREFERRED：优先选择指定节点（仅适用于 NUMA 系统）。
+	// MPOL_BIND：仅使用指定的节点。
+	// MPOL_INTERLEAVE：在所有指定的节点之间交错内存。
 	unsigned short mode; 	/* See MPOL_* above */
+	// flags：内存策略标志，可以是以下之一：
+	// MPOL_F_NODE：v.nodes 中指定的节点是一个节点号。
+	// MPOL_F_ADDR：v.nodes 中指定的节点是一个内存地址。
+	// MPOL_F_MEMS_ALLOWED：w.cpuset_mems_allowed 中指定的节点是“有权访问进程地址空间的 CPU 数量”的子集。该标志仅在 cgroup v2 中的 NUMA 控制器上使用。
 	unsigned short flags;	/* See set_mempolicy() MPOL_F_* above */
+	// v：策略具体内容，可能是以下之一：
 	union {
+		// preferred_node：仅当 mode 为 MPOL_PREFERRED 时使用，表示首选节点的节点号。
 		short 		 preferred_node; /* preferred */
+		// nodes：当 mode 为 MPOL_BIND 或 MPOL_INTERLEAVE 时使用，包含了要使用的节点列表。
 		nodemask_t	 nodes;		/* interleave/bind */
 		/* undefined for default */
 	} v;
+	// w：策略具体内容，可能是以下之一：
 	union {
+		// cpuset_mems_allowed：仅在 cgroup v2 中使用，表示“有权访问进程地址空间的 CPU 数量”的子集。
 		nodemask_t cpuset_mems_allowed;	/* relative to these nodes */
+		// user_nodemask：当使用 set_mempolicy 函数进行设置时使用，表示用户指定的节点列表。
 		nodemask_t user_nodemask;	/* nodemask passed by user */
 	} w;
 };

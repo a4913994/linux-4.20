@@ -565,10 +565,12 @@ static inline void bvec_kunmap_irq(char *buffer, unsigned long *flags)
 
 /*
  * BIO list management for use by remapping drivers (e.g. DM or MD) and loop.
+ * BIO 列表管理，用于重映射驱动（例如 DM 或 MD）和循环驱动程序。
  *
  * A bio_list anchors a singly-linked list of bios chained through the bi_next
  * member of the bio.  The bio_list also caches the last list member to allow
  * fast access to the tail.
+ * 一个 bio_list 锚定了一个单向链表，链表中的 BIOS 通过 bio 的 bi_next 成员连接。bio_list 还缓存了最后一个列表成员，以便快速访问尾部。
  */
 struct bio_list {
 	struct bio *head;

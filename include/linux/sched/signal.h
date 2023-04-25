@@ -13,10 +13,19 @@
  * Types defining task->signal and task->sighand and APIs using them:
  */
 
+// 表示了一个进程的信号处理句柄
+/*
+该结构体通过存储在进程描述符的 sig 成员中，可以使进程通过不同的信号处理方式来响应接收到的信号。想要响应信号，需要设置对应信号的处理函数。
+例如，内核中默认的信号处理函数是 do_signal() 函数，如果想要修改默认处理函数，可以通过修改 action 数组中的对应元素来实现。
+*/
 struct sighand_struct {
+	// count：该信号处理句柄的引用计数。
 	atomic_t		count;
+	// action[_NSIG]：用于存放不同信号编号对应的处理函数等信息的数组。内核中一共定义了 64 种信号，数组的长度就是 _NSIG 常量，通常定义为 64。
 	struct k_sigaction	action[_NSIG];
+	// siglock：信号处理句柄的自旋锁，用于保护信号处理句柄的修改操作。
 	spinlock_t		siglock;
+	// signalfd_wqh：用于处理 signalfd 的等待队列头。
 	wait_queue_head_t	signalfd_wqh;
 };
 
@@ -80,36 +89,53 @@ struct multiprocess_signals {
  * implies a shared sighand_struct, so locking
  * sighand_struct is always a proper superset of
  * the locking of signal_struct.
+ * 注意！"signal_struct" 没有自己的锁，因为共享的 signal_struct 总是意味着共享的 sighand_struct，
+ * 所以锁定 sighand_struct 总是 signal_struct 锁定的适当超集。
+ * 
+ * signal_struct: 用于表示进程的信号状态
  */
 struct signal_struct {
+	// sigcnt：表示尚未被处理的信号数目。
 	atomic_t		sigcnt;
+	// live：表示该进程是否仍然存活。
 	atomic_t		live;
+	// nr_threads：表示该进程的线程数。
 	int			nr_threads;
+	// thread_head：task_struct 结构体的链表头，用于遍历该进程的所有线程。
 	struct list_head	thread_head;
 
+	// wait_chldexit：管道等待队列头，用于等待子进程退出。
 	wait_queue_head_t	wait_chldexit;	/* for wait4() */
 
 	/* current thread group signal load-balancing target: */
+	// curr_target：当前目标线程，用于管理针对线程组的信号预先平衡。
 	struct task_struct	*curr_target;
 
 	/* shared signal handling: */
+	// shared_pending：在进程间共享的待处理信号，用于进程间传递信号。
 	struct sigpending	shared_pending;
 
 	/* For collecting multiprocess signals during fork */
+	// multiprocess：存储多进程信息的哈希链表。
 	struct hlist_head	multiprocess;
 
 	/* thread group exit support */
+	// group_exit_code：该进程组是否已经退出。
 	int			group_exit_code;
 	/* overloaded:
 	 * - notify group_exit_task when ->count is equal to notify_count
 	 * - everyone except group_exit_task is stopped during signal delivery
 	 *   of fatal signals, group_exit_task processes the signal.
 	 */
+	// notify_count：当该进程组的信号状态计数为通知次数时，通知完毕。
 	int			notify_count;
+	// group_exit_task：用于处理信号的进程组任务。
 	struct task_struct	*group_exit_task;
 
 	/* thread group stop support, overloads group_exit_code too */
+	// group_stop_count：用于进程组停止信号功能的计数。
 	int			group_stop_count;
+	// flags：用于表示 Signal 以及特殊标志的位掩码。
 	unsigned int		flags; /* see SIGNAL_* flags below */
 
 	/*
@@ -121,17 +147,22 @@ struct signal_struct {
 	 * process will inherit a flag if they should look for a
 	 * child_subreaper process at exit.
 	 */
+	// is_child_subreaper：标记该进程是否为子控制程序。
 	unsigned int		is_child_subreaper:1;
 	unsigned int		has_child_subreaper:1;
 
 #ifdef CONFIG_POSIX_TIMERS
 
 	/* POSIX.1b Interval Timers */
+	// posix_timer_id：表示定时器链表中计时器的编号。
 	int			posix_timer_id;
+	// posix_timers：定时器链表，用于存储 POSIX.1b 定时器。
 	struct list_head	posix_timers;
 
 	/* ITIMER_REAL timer for the process */
+	// real_timer：ITIMER_REAL 定时器。
 	struct hrtimer real_timer;
+	// it_real_incr：ITIMER_REAL 的定时增量。
 	ktime_t it_real_incr;
 
 	/*
@@ -139,22 +170,27 @@ struct signal_struct {
 	 * CPUCLOCK_PROF and CPUCLOCK_VIRT for indexing array as these
 	 * values are defined to 0 and 1 respectively
 	 */
+	// it[2]：ITIMER_PROF 和 ITIMER_VIRTUAL 定时器。
 	struct cpu_itimer it[2];
 
 	/*
 	 * Thread group totals for process CPU timers.
 	 * See thread_group_cputimer(), et al, for details.
 	 */
+	// cputimer：线程组 CPU 计时器。
 	struct thread_group_cputimer cputimer;
 
 	/* Earliest-expiration cache. */
+	// cputime_expires：记录时钟周期最靠前过期的时间的值。
 	struct task_cputime cputime_expires;
 
+	// cpu_timers[3]：三重强制映射的定时器列表。
 	struct list_head cpu_timers[3];
 
 #endif
 
 	/* PID/PID hash table linkage. */
+	// pids[PIDTYPE_MAX]：与 PID 相关联的指针数组。
 	struct pid *pids[PIDTYPE_MAX];
 
 #ifdef CONFIG_NO_HZ_FULL
@@ -164,8 +200,9 @@ struct signal_struct {
 	struct pid *tty_old_pgrp;
 
 	/* boolean value for session group leader */
+	// leader：指示是否为会话组领导者。
 	int leader;
-
+	// tty：进程的 tty 设备指针。
 	struct tty_struct *tty; /* NULL if no tty */
 
 #ifdef CONFIG_SCHED_AUTOGROUP
@@ -177,15 +214,21 @@ struct signal_struct {
 	 * Live threads maintain their own counters and add to these
 	 * in __exit_signal, except for the group leader.
 	 */
+	// stats_lock：用于同步统计数据的序列化锁。
 	seqlock_t stats_lock;
+	// utime、stime、cutime、cstime：记录耗费在用户空间/内核空间、所有子进程的用户空间/内核空间时间。
 	u64 utime, stime, cutime, cstime;
+	// gtime 和 cgtime：有关 CPU 时间的数据。
 	u64 gtime;
 	u64 cgtime;
+	// prev_cputime：保留用于统计上一个 CPU 时间量的结构体。
 	struct prev_cputime prev_cputime;
+	// nvcsw、nivcsw、cnvcsw、cnivcsw、inblock、oublock、cinblock、coublock、maxrss、cmaxrss：以不同方式度量极限和累计资源使用。配合 task_IO_accounting 结构体使用。
 	unsigned long nvcsw, nivcsw, cnvcsw, cnivcsw;
 	unsigned long min_flt, maj_flt, cmin_flt, cmaj_flt;
 	unsigned long inblock, oublock, cinblock, coublock;
 	unsigned long maxrss, cmaxrss;
+	// ioac：记录任务进行的所有 I/O 请求的结构体。
 	struct task_io_accounting ioac;
 
 	/*
@@ -194,6 +237,7 @@ struct signal_struct {
 	 * from jiffies_to_ns(utime + stime) if sched_clock uses something
 	 * other than jiffies.)
 	 */
+	// sum_sched_runtime：记录所属线程组过去已使用的 CPU 时间，对内核动态时间调度非常重要。
 	unsigned long long sum_sched_runtime;
 
 	/*
@@ -205,16 +249,21 @@ struct signal_struct {
 	 * protect this instead of the siglock, because they really
 	 * have no need to disable irqs.
 	 */
+	// rlim[RLIM_NLIMITS]：关于进程资源限制的数组。
 	struct rlimit rlim[RLIM_NLIMITS];
 
 #ifdef CONFIG_BSD_PROCESS_ACCT
+	// pacct：关于进程级别的账户信息的结构体。
 	struct pacct_struct pacct;	/* per-process accounting information */
 #endif
 #ifdef CONFIG_TASKSTATS
+	// stats：任务状态结构体指针。
 	struct taskstats *stats;
 #endif
 #ifdef CONFIG_AUDIT
+	// audit_tty：审计终端。
 	unsigned audit_tty;
+	// tty_audit_buf：审计缓冲区。
 	struct tty_audit_buf *tty_audit_buf;
 #endif
 
@@ -222,10 +271,14 @@ struct signal_struct {
 	 * Thread is the potential origin of an oom condition; kill first on
 	 * oom
 	 */
+	// oom_flag_origin：标记是否为 OOM 警告起源的线程组。
 	bool oom_flag_origin;
+	// oom_score_adj：OOM 警告的得分调整。
 	short oom_score_adj;		/* OOM kill score adjustment */
+	// oom_score_adj_min：OOM 警告得分调整的最小值。
 	short oom_score_adj_min;	/* OOM kill score adjustment min value.
 					 * Only settable by CAP_SYS_RESOURCE. */
+	// oom_mm：记录为什么原因、在什么情况下杀死当前进程的内存映像。
 	struct mm_struct *oom_mm;	/* recorded mm when the thread group got
 					 * killed by the oom killer */
 
@@ -237,19 +290,29 @@ struct signal_struct {
 /*
  * Bits in flags field of signal_struct.
  */
+// SIGNAL_STOP_STOPPED：表示作业控制停止在进行中。
 #define SIGNAL_STOP_STOPPED	0x00000001 /* job control stop in effect */
+// SIGNAL_STOP_CONTINUED：表示收到 SIGCONT 信号以恢复作业控制。
 #define SIGNAL_STOP_CONTINUED	0x00000002 /* SIGCONT since WCONTINUED reap */
+// SIGNAL_GROUP_EXIT：表示进程组退出正在进行中。
 #define SIGNAL_GROUP_EXIT	0x00000004 /* group exit in progress */
+// SIGNAL_GROUP_COREDUMP：表示进程组的内存映像正在进行 coredump。
 #define SIGNAL_GROUP_COREDUMP	0x00000008 /* coredump in progress */
 /*
  * Pending notifications to parent.
+ 这段代码定义了另外一些标志宏用于定义 signal_struct 结构体 flags 字段的属性
  */
+// SIGNAL_CLD_STOPPED：表示作业控制停止位于子进程中。
 #define SIGNAL_CLD_STOPPED	0x00000010
+// SIGNAL_CLD_CONTINUED：表示子进程正在处理来自父进程的 SIGCONT 信号。
 #define SIGNAL_CLD_CONTINUED	0x00000020
+// SIGNAL_CLD_MASK：与子进程相关的信号标志掩码。
 #define SIGNAL_CLD_MASK		(SIGNAL_CLD_STOPPED|SIGNAL_CLD_CONTINUED)
 
+// SIGNAL_UNKILLABLE：表示进程在接收到致命信号时不会被杀死，只会进行错误处理或产生内核转储。
 #define SIGNAL_UNKILLABLE	0x00000040 /* for init: ignore fatal signals */
 
+// SIGNAL_STOP_MASK：用于掩盖与停止有关的信号标志。
 #define SIGNAL_STOP_MASK (SIGNAL_CLD_MASK | SIGNAL_STOP_STOPPED | \
 			  SIGNAL_STOP_CONTINUED)
 

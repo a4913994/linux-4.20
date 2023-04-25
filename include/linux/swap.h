@@ -229,32 +229,55 @@ struct swap_cluster_list {
 /*
  * The in-memory structure used to track swap areas.
  */
+// swap_info_struct，它表示了一个交换分区的相关信息，包括索引、大小、使用情况等
 struct swap_info_struct {
+	// flags：标记，用于表示交换分区的状态。例如 SWP_USED 表示交换分区正在被使用。
 	unsigned long	flags;		/* SWP_USED etc: see above */
+	// prio：交换分区的优先级。
 	signed short	prio;		/* swap priority of this type */
+	// list：swap_active_head 中的 plist_node 元素。
 	struct plist_node list;		/* entry in swap_active_head */
+	// avail_lists[MAX_NUMNODES]：可用交换分区列表的 plist_node 元素。
 	struct plist_node avail_lists[MAX_NUMNODES];/* entry in swap_avail_heads */
+	// type：交换分区的类型。实际上是一个索引，假设最多支持64种类型，则 type 0-63 表示分区的类型。
 	signed char	type;		/* strange name for an index */
+	// max：交换分区的扇区数。
 	unsigned int	max;		/* extent of the swap_map */
+	// swap_map：交换分区的使用情况表，记录每个页面被使用的情况。
 	unsigned char *swap_map;	/* vmalloc'ed array of usage counts */
+	// cluster_info：仅用于 SSD，表示交换分区的固态硬盘信息。
 	struct swap_cluster_info *cluster_info; /* cluster info. Only for SSD */
+	// free_clusters：可用交换分区的列表。
 	struct swap_cluster_list free_clusters; /* free clusters list */
+	// lowest_bit 和 highest_bit：交换分区使用情况表中的最低和最高位置(页面)。
 	unsigned int lowest_bit;	/* index of first free in swap_map */
 	unsigned int highest_bit;	/* index of last free in swap_map */
+	// pages：可用的交换空间大小（页面数）。
 	unsigned int pages;		/* total of usable pages of swap */
+	// inuse_pages：交换分区已使用的页面数量。
 	unsigned int inuse_pages;	/* number of those currently in use */
+	// cluster_next：下一个簇的位置。
 	unsigned int cluster_next;	/* likely index for next allocation */
+	// cluster_nr：寻找下一个交换簇的剩余尝试次数。
 	unsigned int cluster_nr;	/* countdown to next cluster search */
+	// percpu_cluster：per-CPU 交换分区的位置。
 	struct percpu_cluster __percpu *percpu_cluster; /* per cpu's swap location */
+	// curr_swap_extent：当前交换扩展结构的指针。
 	struct swap_extent *curr_swap_extent;
+	// first_swap_extent：第一个交换扩展结构。
 	struct swap_extent first_swap_extent;
+	// bdev：指向交换分区所在块设备的指针。
 	struct block_device *bdev;	/* swap device or bdev of swap file */
+	// swap_file：指向交换文件的指针。
 	struct file *swap_file;		/* seldom referenced */
+	// old_block_size：原始块大小。
 	unsigned int old_block_size;	/* seldom referenced */
 #ifdef CONFIG_FRONTSWAP
+	// frontswap_map 和 frontswap_pages：CONFIG_FRONTSWAP启用时使用的前端交换页面映射。
 	unsigned long *frontswap_map;	/* frontswap in-use, one bit per page */
 	atomic_t frontswap_pages;	/* frontswap pages in-use counter */
 #endif
+	// lock 和 cont_lock：用于保护交换分区使用情况表中的相关信息及交换分区计数器。
 	spinlock_t lock;		/*
 					 * protect map scan related fields like
 					 * swap_map, lowest_bit, highest_bit,
@@ -272,7 +295,9 @@ struct swap_info_struct {
 					 * protect swap count continuation page
 					 * list.
 					 */
+	// discard_work：处理丢弃空闲页面工作的 Linux 工作队列。
 	struct work_struct discard_work; /* discard worker */
+	// discard_clusters：丢弃空闲页面的交换分区数。
 	struct swap_cluster_list discard_clusters; /* discard clusters list */
 };
 

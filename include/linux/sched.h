@@ -226,12 +226,14 @@ extern void io_schedule(void);
 
 /**
  * struct prev_cputime - snapshot of system and user cputime
- * @utime: time spent in user mode
- * @stime: time spent in system mode
- * @lock: protects the above two fields
+ * struct prev_cputime - 系统和用户 CPU 时间的快照
+ * @utime: time spent in user mode 在用户模式下花费的时间
+ * @stime: time spent in system mode 在系统模式下花费的时间
+ * @lock: protects the above two fields 保护上面两个字段
  *
  * Stores previous user/system time values such that we can guarantee
- * monotonicity.
+ * monotonicity. 
+ * 存储先前的用户/系统时间值，以便我们可以保证单调性。
  */
 struct prev_cputime {
 #ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
@@ -243,13 +245,15 @@ struct prev_cputime {
 
 /**
  * struct task_cputime - collected CPU time counts
- * @utime:		time spent in user mode, in nanoseconds
- * @stime:		time spent in kernel mode, in nanoseconds
- * @sum_exec_runtime:	total time spent on the CPU, in nanoseconds
+ * struct task_cputime - 已收集的 CPU 时间计数
+ * @utime:		time spent in user mode, in nanoseconds 用户模式下花费的时间，以纳秒为单位
+ * @stime:		time spent in kernel mode, in nanoseconds 内核模式下花费的时间，以纳秒为单位
+ * @sum_exec_runtime:	total time spent on the CPU, in nanoseconds 在 CPU 上总共花费的时间，以纳秒为单位
  *
  * This structure groups together three kinds of CPU time that are tracked for
  * threads and thread groups.  Most things considering CPU time want to group
  * these counts together and treat all three of them in parallel.
+ * 这个结构将线程和线程组跟踪的三种 CPU 时间分组在一起。考虑到 CPU 时间的大多数情况都想将这些计数归为一组，并将它们并行处理
  */
 struct task_cputime {
 	u64				utime;

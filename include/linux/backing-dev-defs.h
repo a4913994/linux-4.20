@@ -164,38 +164,58 @@ struct bdi_writeback {
 #endif
 };
 
+// backing_dev_info 结构体用于管理块设备缓存的有关统计信息、 writeback 和防拥塞策略信息。 
+// 它维护了关于设备的预读和 I/O 长度，需要写回的数据以及 cgroup 写入上限等信息。它还定义了 writeback 相关的树和链表以及等待唤醒队列，
+// 使得所有的写入操作不影响系统的性能和稳定性。
 struct backing_dev_info {
+	// bdi_list：链表头，用于维护所有 backing_dev_info 的链表
 	struct list_head bdi_list;
+	// ra_pages：最大的预读页面数（以 PAGE_SIZE 为单位）
 	unsigned long ra_pages;	/* max readahead in PAGE_SIZE units */
+	// io_pages：最大的允许 I/O 大小
 	unsigned long io_pages;	/* max allowed IO size */
+	// congested_fn 和 congested_data：对于 md/dm 设备指定的拥塞函数和相关的数据
 	congested_fn *congested_fn; /* Function pointer if device is md/dm */
 	void *congested_data;	/* Pointer to aux data for congested func */
 
+	// name：该设备的名称
 	const char *name;
 
+	// refcnt：引用计数器，用于管理该结构体
 	struct kref refcnt;	/* Reference counter for the structure */
+	// capabilities：设备的属性，以比特标志的形式表示
 	unsigned int capabilities; /* Device capabilities */
+	// min_ratio：最小脏数据占总内存的比率
 	unsigned int min_ratio;
+	// max_ratio 和 max_prop_frac：最大脏数据占总内存的比率和最大清理比例
 	unsigned int max_ratio, max_prop_frac;
 
 	/*
 	 * Sum of avg_write_bw of wbs with dirty inodes.  > 0 if there are
 	 * any dirty wbs, which is depended upon by bdi_has_dirty().
 	 */
+	// tot_write_bandwidth：所有带有脏节点的 writeback 的平均写带宽之和
 	atomic_long_t tot_write_bandwidth;
 
+	// wb：该 backing_dev_info 的根写回信息（writeback）
 	struct bdi_writeback wb;  /* the root writeback info for this bdi */
+	// wb_list：所有相关 writeback 的链表
 	struct list_head wb_list; /* list of all wbs */
 #ifdef CONFIG_CGROUP_WRITEBACK
+	// cgwb_tree 和 cgwb_congested_tree：所有活动 cgroup writeback 的基数树和其拥塞状态的红黑树
 	struct radix_tree_root cgwb_tree; /* radix tree of active cgroup wbs */
 	struct rb_root cgwb_congested_tree; /* their congested states */
+	// cgwb_release_mutex：保护 writeback 结构体关机的互斥锁
 	struct mutex cgwb_release_mutex;  /* protect shutdown of wb structs */
 #else
 	struct bdi_writeback_congested *wb_congested;
 #endif
+	// wb_waitq：关联的等待队列
 	wait_queue_head_t wb_waitq;
 
+	// dev：关联的设备
 	struct device *dev;
+	// owner：指定拥有该 backing_dev_info 结构体的设备
 	struct device *owner;
 
 	struct timer_list laptop_mode_wb_timer;

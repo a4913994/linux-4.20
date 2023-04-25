@@ -94,27 +94,40 @@ struct io_cq {
 /*
  * I/O subsystem state of the associated processes.  It is refcounted
  * and kmalloc'ed. These could be shared between processes.
+ * 与关联进程相关的 I/O 子系统状态。它是引用计数的并且通过 kmalloc 进行分配。这些状态可以在进程之间共享。
  */
+// io_context 结构体，它用于在 Linux 内核中控制并跟踪一组 I/O 操作
 struct io_context {
+	// refcount：引用计数器。用于管理 io_context 结构的生命周期。
 	atomic_long_t refcount;
+	// active_ref：表示该 io_context 当前是否处于活跃状态，用于进行暂停和重新启动 I/O 操作。
 	atomic_t active_ref;
+	// nr_tasks：已经关联到该 io_context 的进程个数。
 	atomic_t nr_tasks;
 
 	/* all the fields below are protected by this lock */
+	// lock：用于锁定该上下文的所有字段，以确保并发访问的正确性。
 	spinlock_t lock;
 
+	// ioprio：该上下文中所有 I/O 请求使用的 I/O 优先级。
 	unsigned short ioprio;
 
 	/*
 	 * For request batching
 	 */
+	// nr_batch_requests：用于请求批量处理，指示剩余未处理的请求数。
 	int nr_batch_requests;     /* Number of requests left in the batch */
+	// last_waited：表示上次等候请求的时间。
 	unsigned long last_waited; /* Time last woken after wait for request */
 
+	// icq_tree：一个基数树，用于跟踪与该 io_context 相关的所有请求。
 	struct radix_tree_root	icq_tree;
+	// icq_hint：一个指针，指向最近的与 io_context 相关的请求队列。
 	struct io_cq __rcu	*icq_hint;
+	// icq_list：一个哈希表，使用 hlist_head 连接，跟踪与该 io_context 关联的 I/O 请求。
 	struct hlist_head	icq_list;
 
+	// release_work：一个工作队列，用于异步释放 io_context。
 	struct work_struct release_work;
 };
 
