@@ -43,14 +43,16 @@
 
 /* The interface for checksum offload between the stack and networking drivers
  * is as follows...
+ * 栈和网络驱动程序之间进行校验和卸载的接口如下
  *
- * A. IP checksum related features
+ * A. IP checksum related features 
+ * A. IP 校验和相关功能
  *
  * Drivers advertise checksum offload capabilities in the features of a device.
  * From the stack's point of view these are capabilities offered by the driver,
  * a driver typically only advertises features that it is capable of offloading
  * to its device.
- *
+ * 驱动程序在设备的功能中宣传校验和卸载功能。从栈的角度来看，这些是驱动程序提供的功能，驱动程序通常只宣传其能够卸载到设备的功能。
  * The checksum related features are:
  *
  *	NETIF_F_HW_CSUM	- The driver (or its device) is able to compute one
@@ -58,6 +60,7 @@
  *			  of protocols or protocol layering. The checksum is
  *			  computed and set in a packet per the CHECKSUM_PARTIAL
  *			  interface (see below).
+ 	NETIF_F_HW_CSUM - 驱动程序（或其设备）能够为任何组合的协议或协议层计算一个 IP（一补数）校验和。校验和是根据 CHECKSUM_PARTIAL 接口在数据包中计算并设置的（见下文）。
  *
  *	NETIF_F_IP_CSUM - Driver (device) is only able to checksum plain
  *			  TCP or UDP packets over IPv4. These are specifically
@@ -67,6 +70,7 @@
  *			  This feature cannot be set in features for a device
  *			  with NETIF_F_HW_CSUM also set. This feature is being
  *			  DEPRECATED (see below).
+ NETIF_F_IP_CSUM - 驱动程序（设备）仅能够计算 IPv4 上普通的 TCP 或 UDP 数据包的校验和。这些是特定的非封装形式的 IPv4 | TCP 或 IPv4 | UDP 数据包，其中 IPv4 标头中的协议字段为 TCP 或 UDP。IPv4 标头可能包含 IP 选项。不能在设置了 NETIF_F_HW_CSUM 的设备功能中设置此功能。此功能被弃用（见下文）。
  *
  *	NETIF_F_IPV6_CSUM - Driver (device) is only able to checksum plain
  *			  TCP or UDP packets over IPv6. These are specifically
@@ -77,6 +81,7 @@
  *			  cannot be set in features for a device with
  *			  NETIF_F_HW_CSUM also set. This feature is being
  *			  DEPRECATED (see below).
+ NETIF_F_IPV6_CSUM - 驱动程序（设备）仅能够计算 IPv6 上普通的 TCP 或 UDP 数据包的校验和。这些是特定的非封装形式的 IPv6 | TCP 或 IPv4 | UDP 数据包，其中 IPv6 标头中的下一个协议字段为 TCP 或 UDP。此功能不支持 IPv6 扩展标头。不能在设置了 NETIF_F_HW_CSUM 的设备功能中设置此功能。此功能被弃用（见下文）。
  *
  *	NETIF_F_RXCSUM - Driver (device) performs receive checksum offload.
  *			 This flag is used only used to disable the RX checksum
@@ -84,6 +89,8 @@
  *			 checksum indication in packets received on a device
  *			 regardless of whether NETIF_F_RXCSUM is set.
  *
+ * NETIF_F_RXCSUM - 驱动程序（设备）执行接收校验和卸载。此标志仅用于禁用设备的 RX 校验和功能。无论是否设置了 NETIF_F_RXCSUM，堆栈都将接受在设备上接收到的数据包中的接收校验和指示。
+ * 
  * B. Checksumming of received packets by device. Indication of checksum
  *    verification is in set skb->ip_summed. Possible values are:
  *
@@ -217,9 +224,13 @@
  */
 
 /* Don't change this without changing skb_csum_unnecessary! */
+// CHECKSUM_NONE表示不需要计算校验和；
 #define CHECKSUM_NONE		0
+// CHECKSUM_UNNECESSARY表示该数据包中已经包含了完整的校验和，不需要再进行计算；
 #define CHECKSUM_UNNECESSARY	1
+// CHECKSUM_COMPLETE表示需要对整个数据包进行校验和计算；
 #define CHECKSUM_COMPLETE	2
+// CHECKSUM_PARTIAL表示需要对数据包的部分进行校验和计算，而不是整个数据包。
 #define CHECKSUM_PARTIAL	3
 
 /* Maximum value in skb->csum_level */
@@ -668,29 +679,38 @@ struct sk_buff {
 	union {
 		struct {
 			/* These two members must be first. */
+			// next：指向下一个sk_buff结构体，用于将多个数据包组织成一个队列。
 			struct sk_buff		*next;
+			// prev：指向前一个sk_buff结构体，用于将多个数据包组织成一个队列。
 			struct sk_buff		*prev;
 
 			union {
+				// dev：指向一个net_device结构体，用于表示数据包经过的网络设备。
 				struct net_device	*dev;
 				/* Some protocols might use this space to store information,
 				 * while device pointer would be NULL.
 				 * UDP receive path is one user.
 				 */
+				// 
 				unsigned long		dev_scratch;
 			};
 		};
+		// rbnode：用于将sk_buff结构体组成红黑树，例如在ip4 defrag和tcp stack中使用。
 		struct rb_node		rbnode; /* used in netem, ip4 defrag, and tcp stack */
 		struct list_head	list;
 	};
 
 	union {
+		// sk：指向一个sock结构体，用于表示与该数据包相关的套接字。
 		struct sock		*sk;
+		// ip_defrag_offset：记录IP包的偏移量。
 		int			ip_defrag_offset;
 	};
 
 	union {
+		// tstamp：记录数据包的到达时间或者离开时间。
 		ktime_t		tstamp;
+		// skb_mstamp_ns：记录数据包的最早离开时间，用于实现时间敏感的网络功能，例如流控。
 		u64		skb_mstamp_ns; /* earliest departure time */
 	};
 	/*
@@ -699,33 +719,45 @@ struct sk_buff {
 	 * want to keep them across layers you have to do a skb_clone()
 	 * first. This is owned by whoever has the skb queued ATM.
 	 */
+	// cb：大小为48字节的缓冲区，用于存储控制信息。不同的协议栈可以在这个缓冲区中存储不同的信息，同时需要保证该缓冲区只由当前拥有该数据包的模块访问。
 	char			cb[48] __aligned(8);
 
 	union {
 		struct {
+			// skb_refdst：保留字段，可能被某些协议使用。
 			unsigned long	_skb_refdst;
+			// destructor：指向一个函数指针，用于在数据包被释放时进行清理操作。
 			void		(*destructor)(struct sk_buff *skb);
 		};
+		// tcp_tsorted_anchor：用于在TCP协议中记录传输层头部的位置。
 		struct list_head	tcp_tsorted_anchor;
 	};
 
 #ifdef CONFIG_XFRM
+	// sp：指向一个sec_path结构体，用于表示数据包的安全路径。
 	struct	sec_path	*sp;
 #endif
 #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+	// _nfct：用于表示数据包的连接跟踪信息。
 	unsigned long		 _nfct;
 #endif
 #if IS_ENABLED(CONFIG_BRIDGE_NETFILTER)
+	// nf_bridge：用于表示桥接信息。
 	struct nf_bridge_info	*nf_bridge;
 #endif
+	// len：表示数据包的总长度。
 	unsigned int		len,
+	// data_len：表示数据区域中实际数据的长度。
 				data_len;
+	// mac_len：表示链路层头部的长度。
 	__u16			mac_len,
+	// hdr_len：表示总头部长度。
 				hdr_len;
 
 	/* Following fields are _not_ copied in __copy_skb_header()
 	 * Note that queue_mapping is here mostly to fill a hole.
 	 */
+	// queue_mapping：用于标记数据包的队列。
 	__u16			queue_mapping;
 
 /* if you move cloned around you also must adapt those constants */
@@ -737,12 +769,19 @@ struct sk_buff {
 #define CLONED_OFFSET()		offsetof(struct sk_buff, __cloned_offset)
 
 	__u8			__cloned_offset[0];
+					// cloned：表示数据包是否被克隆。
 	__u8			cloned:1,
+				// nohdr：表示数据包是否包含头部。
 				nohdr:1,
+				// fclone：表示数据包的克隆类型，例如在发送数据包时，有时会进行浅拷贝或深拷贝。
 				fclone:2,
+				// peeked：表示数据包是否被抓取。
 				peeked:1,
+				// head_frag：表示数据包的头部是否被分片。
 				head_frag:1,
+				// xmit_more：表示是否有更多的数据包需要发送。
 				xmit_more:1,
+				// pfmemalloc：表示是否是从PFN内存中分配的数据包。
 				pfmemalloc:1;
 
 	/* fields enclosed in headers_start/headers_end are copied
@@ -761,102 +800,160 @@ struct sk_buff {
 #define PKT_TYPE_OFFSET()	offsetof(struct sk_buff, __pkt_type_offset)
 
 	__u8			__pkt_type_offset[0];
+	// pkt_type：用于表示数据包类型，如数据包来自内核还是用户空间。
 	__u8			pkt_type:3;
+	// ignore_df：表示是否忽略DF（Don't Fragment）位。
 	__u8			ignore_df:1;
+	// nf_trace：表示是否启用网络跟踪。
 	__u8			nf_trace:1;
+	// ip_summed：表示数据包校验和计算的状态。
 	__u8			ip_summed:2;
+	// ooo_okay：表示是否允许乱序的数据包。
 	__u8			ooo_okay:1;
 
+	// l4_hash：表示数据包是否进行了四元组哈希。
 	__u8			l4_hash:1;
+	// sw_hash：表示数据包是否进行了软件哈希。
 	__u8			sw_hash:1;
+	// wifi_acked_valid：表示是否为WiFi数据包并且确认已发送。
 	__u8			wifi_acked_valid:1;
+	// wifi_acked：表示是否为WiFi数据包并且已确认接收。
 	__u8			wifi_acked:1;
+	// no_fcs: 是否不包括FCS
 	__u8			no_fcs:1;
 	/* Indicates the inner headers are valid in the skbuff. */
+	// encapsulation：表示是否存在内部头部。
 	__u8			encapsulation:1;
+	// encap_hdr_csum: 是否对内部头部进行校验和计算。
 	__u8			encap_hdr_csum:1;
+	// csum_valid：表示数据包的校验和是否有效。
 	__u8			csum_valid:1;
 
+	// csum_complete_sw：表示校验和是否已经在软件中计算完成。
 	__u8			csum_complete_sw:1;
+	// csum_level：表示校验和的级别，即IP层、传输层或其他。
 	__u8			csum_level:2;
+	// csum_not_inet：表示是否在IPv4或IPv6网络中。
 	__u8			csum_not_inet:1;
+	// dst_pending_confirm：表示是否需要确认目标地址。
 	__u8			dst_pending_confirm:1;
 #ifdef CONFIG_IPV6_NDISC_NODETYPE
+	// ndisc_nodetype: IPv6邻居发现协议中的节点类型。
 	__u8			ndisc_nodetype:2;
 #endif
+	// ipvs_property：用于标记数据包是否来自IPVS。
 	__u8			ipvs_property:1;
 
+	// inner_protocol_type：表示内部头部的类型。
 	__u8			inner_protocol_type:1;
+	// remcsum_offload：表示是否对远程校验和进行加速。
 	__u8			remcsum_offload:1;
 #ifdef CONFIG_NET_SWITCHDEV
+	// offload_fwd_mark：表示是否启用转发标记卸载。
 	__u8			offload_fwd_mark:1;
+	// offload_mr_fwd_mark：表示是否启用多播路由器标记卸载。
 	__u8			offload_mr_fwd_mark:1;
 #endif
 #ifdef CONFIG_NET_CLS_ACT
+	// tc_skip_classify：表示是否跳过数据包的分类。
 	__u8			tc_skip_classify:1;
+	// tc_at_ingress：表示是否在进入网络设备时进行分类。
 	__u8			tc_at_ingress:1;
+	// tc_redirected：表示是否重定向到其他队列。
 	__u8			tc_redirected:1;
+	// tc_from_ingress：表示是否从进入网络设备时的队列中接收数据包。
 	__u8			tc_from_ingress:1;
 #endif
 #ifdef CONFIG_TLS_DEVICE
+	// decrypted：表示数据包是否已解密。
 	__u8			decrypted:1;
 #endif
 
 #ifdef CONFIG_NET_SCHED
+	// tc_index：用于记录流量控制索引。
 	__u16			tc_index;	/* traffic control index */
 #endif
 
 	union {
+		// csum：表示校验和的值。
 		__wsum		csum;
 		struct {
+			// csum_start：表示校验和计算的起始位置。
 			__u16	csum_start;
+			// csum_offset：表示校验和的偏移量。
 			__u16	csum_offset;
 		};
 	};
+	// priority：表示数据包的优先级。
 	__u32			priority;
+	// skb_iif：表示数据包进入的网络接口。
 	int			skb_iif;
+	// hash：用于在哈希表中快速查找数据包。
 	__u32			hash;
+	// vlan_proto：表示数据包的VLAN协议类型。
 	__be16			vlan_proto;
+	// vlan_tci：表示数据包的VLAN标记。
 	__u16			vlan_tci;
 #if defined(CONFIG_NET_RX_BUSY_POLL) || defined(CONFIG_XPS)
 	union {
+		// napi_id：表示处理数据包的NAPI ID。
 		unsigned int	napi_id;
+		// sender_cpu：表示发送数据包的CPU ID。
 		unsigned int	sender_cpu;
 	};
 #endif
 #ifdef CONFIG_NETWORK_SECMARK
+	// secmark：表示数据包的安全标记。
 	__u32		secmark;
 #endif
 
 	union {
+		// mark：用于标记数据包的状态。
 		__u32		mark;
+		// reserved_tailroom：用于保留尾部空间。
 		__u32		reserved_tailroom;
 	};
 
 	union {
+		// inner_protocol：表示内部头部的协议类型。
 		__be16		inner_protocol;
+		// inner_ipproto：表示内部头部的IP协议类型。
 		__u8		inner_ipproto;
 	};
 
+	// inner_transport_header：表示内部传输层头部的位置。
 	__u16			inner_transport_header;
+	// inner_network_header：表示内部网络层头部的位置。
 	__u16			inner_network_header;
+	// inner_mac_header：表示内部链路层头部的位置。
 	__u16			inner_mac_header;
 
+	// protocol：表示数据包的协议类型。
 	__be16			protocol;
+	// transport_header：表示传输层头部的位置。
 	__u16			transport_header;
+	// network_header：表示网络层头部的位置。
 	__u16			network_header;
+	// mac_header：表示链路层头部的位置。
 	__u16			mac_header;
 
 	/* private: */
+	// headers_end：用于记录头部的结束位置。
 	__u32			headers_end[0];
 	/* public: */
 
 	/* These elements must be at the end, see alloc_skb() for details.  */
+	// tail：指向数据区域中实际数据的结束位置。
 	sk_buff_data_t		tail;
+	// end：指向数据区域的结束位置。
 	sk_buff_data_t		end;
+	// head：指向数据区域的起始位置。
 	unsigned char		*head,
+	// data：指向数据区域中实际数据的起始位置。
 				*data;
+	// truesize：记录数据区域的大小，即数据包的负载大小。
 	unsigned int		truesize;
+	// users：用于引用计数，防止数据包被释放。
 	refcount_t		users;
 };
 
