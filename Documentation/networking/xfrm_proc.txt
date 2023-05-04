@@ -10,73 +10,74 @@ The xfrm_proc code is a set of statistics showing numbers of packets
 dropped by the transformation code and why.  These counters are defined
 as part of the linux private MIB.  These counters can be viewed in
 /proc/net/xfrm_stat.
-
+xfrm_proc代码是一组统计数据，显示了由转换代码丢弃的数据包数量及其原因。这些计数器被定义为Linux私有MIB的一部分。
+这些计数器可以在/proc/net/xfrm_stat中查看。
 
 Inbound errors
 ~~~~~~~~~~~~~~
 XfrmInError:
-	All errors which is not matched others
+	All errors which is not matched others // 所有没能匹配到其他类型错误的错误
 XfrmInBufferError:
-	No buffer is left
+	No buffer is left // 没有空闲缓存剩余
 XfrmInHdrError:
-	Header error
+	Header error // 头部错误
 XfrmInNoStates:
-	No state is found
-	i.e. Either inbound SPI, address, or IPsec protocol at SA is wrong
+	No state is found // 找不到状态即，入站SPI、地址或SA的IPsec协议有误
+	i.e. Either inbound SPI, address, or IPsec protocol at SA is wrong  
 XfrmInStateProtoError:
-	Transformation protocol specific error
+	Transformation protocol specific error // 转换协议的特定错误,例如，SA密钥错误
 	e.g. SA key is wrong
 XfrmInStateModeError:
-	Transformation mode specific error
+	Transformation mode specific error // 转换模式的特定错误
 XfrmInStateSeqError:
 	Sequence error
-	i.e. Sequence number is out of window
+	i.e. Sequence number is out of window // 序列错误即，序列号超出限制
 XfrmInStateExpired:
-	State is expired
+	State is expired // 状态已经过期
 XfrmInStateMismatch:
 	State has mismatch option
-	e.g. UDP encapsulation type is mismatch
+	e.g. UDP encapsulation type is mismatch // 状态选项不匹配例如，UDP封装类型不匹配
 XfrmInStateInvalid:
-	State is invalid
+	State is invalid // 状态无效
 XfrmInTmplMismatch:
 	No matching template for states
-	e.g. Inbound SAs are correct but SP rule is wrong
+	e.g. Inbound SAs are correct but SP rule is wrong // 状态没有匹配到任何模板, 例如，入站SA正确，但SP规则错误
 XfrmInNoPols:
 	No policy is found for states
-	e.g. Inbound SAs are correct but no SP is found
+	e.g. Inbound SAs are correct but no SP is found // 没有为状态找到策略, 例如，入站SA正确，但未找到SP
 XfrmInPolBlock:
-	Policy discards
+	Policy discards // 策略拒绝
 XfrmInPolError:
-	Policy error
+	Policy error // 策略错误
 XfrmAcquireError:
-	State hasn't been fully acquired before use
+	State hasn't been fully acquired before use // 状态在使用前未完全获取
 XfrmFwdHdrError:
-	Forward routing of a packet is not allowed
+	Forward routing of a packet is not allowed // 不允许转发数据包
 
 Outbound errors
 ~~~~~~~~~~~~~~~
 XfrmOutError:
-	All errors which is not matched others
+	All errors which is not matched others // 所有没能匹配到其他类型错误的错误
 XfrmOutBundleGenError:
-	Bundle generation error
+	Bundle generation error // 捆绑生成错误
 XfrmOutBundleCheckError:
-	Bundle check error
+	Bundle check error // 捆绑检查错误
 XfrmOutNoStates:
-	No state is found
+	No state is found // 无法找到状态
 XfrmOutStateProtoError:
-	Transformation protocol specific error
+	Transformation protocol specific error // 转换协议的特定错误
 XfrmOutStateModeError:
-	Transformation mode specific error
+	Transformation mode specific error // 转换模式的特定错误
 XfrmOutStateSeqError:
 	Sequence error
-	i.e. Sequence number overflow
+	i.e. Sequence number overflow // 序列错误,即，序列号溢出
 XfrmOutStateExpired:
-	State is expired
+	State is expired // 状态已经过期
 XfrmOutPolBlock:
-	Policy discards
+	Policy discards // 策略拒绝
 XfrmOutPolDead:
-	Policy is dead
+	Policy is dead // 策略已失效
 XfrmOutPolError:
-	Policy error
+	Policy error // 策略错误
 XfrmOutStateInvalid:
-	State is invalid, perhaps expired
+	State is invalid, perhaps expired // 状态无效，可能已过期

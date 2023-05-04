@@ -1,12 +1,15 @@
 
 Here documents known IPsec corner cases which need to be keep in mind when
 deploy various IPsec configuration in real world production environment.
+这里列举了一些IPsec边角问题，在实际生产环境中部署不同的IPsec配置时需要注意。
 
 1. IPcomp: Small IP packet won't get compressed at sender, and failed on
 	   policy check on receiver.
+1. IPcomp: 发送端无法压缩小的IP数据包，并在接收端的策略检查中失败。
+
 
 Quote from RFC3173:
-2.2. Non-Expansion Policy
+2.2. Non-Expansion Policy // 非扩展策略
 
    If the total size of a compressed payload and the IPComp header, as
    defined in section 3, is not smaller than the size of the original
@@ -17,12 +20,14 @@ Quote from RFC3173:
    the decompression processing cycles and avoiding incurring IP
    datagram fragmentation when the expanded datagram is larger than the
    MTU.
+   如果压缩负载和IPComp头的总大小未小于原始负载的大小，如第3节所定义，那么IP数据报必须以原始非压缩形式发送。要澄清的是：如果发送非压缩的IP数据报，则不会将IPComp头添加到数据报中。此策略确保节省解压缩处理周期并避免在扩展数据报大于MTU时产生IP数据报分段。
 
    Small IP datagrams are likely to expand as a result of compression.
    Therefore, a numeric threshold should be applied before compression,
    where IP datagrams of size smaller than the threshold are sent in the
    original form without attempting compression.  The numeric threshold
    is implementation dependent.
+   小的IP数据报很可能由于压缩而扩展。因此，在压缩之前应该应用数值阈值，其中大小小于阈值的IP数据报以原始形式发送，而不尝试压缩。数值阈值依赖于实现。
 
 Current IPComp implementation is indeed by the book, while as in practice
 when sending non-compressed packet to the peer (whether or not packet len
@@ -32,7 +37,9 @@ matches the selector but not coming from any XFRM layer, i.e., with no
 security path. Such naked packet will not eventually make it to upper layer.
 The result is much more wired to the user when ping peer with different
 payload length.
+目前的IPComp实现确实按照规定，但实际上当将非压缩的数据包发送到对等方时（无论包长是否小于阈值或压缩后的长度是否大于原始包的长度），在检查策略时会将该数据包丢弃，因为该数据包匹配选择器但不来自任何XFRM层，即没有安全路径。这种裸露的数据包最终不会到达上层。当使用不同的负载长度ping对等方时，这种结果对用户来说更加令人困惑
 
 One workaround is try to set "level use" for each policy if user observed
 above scenario. The consequence of doing so is small packet(uncompressed)
 will skip policy checking on receiver side.
+一个解决方法是，如果用户观察到上述情况，则尝试为每个策略设置“level use”。这样做的后果是，小的数据包（未压缩）将跳过接收方的策略检查。

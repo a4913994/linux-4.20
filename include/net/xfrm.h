@@ -30,13 +30,20 @@
 #ifdef CONFIG_XFRM_STATISTICS
 #include <net/snmp.h>
 #endif
-
+// 用于在Linux内核中指定不同类型的IPsec协议（XFRM_PROTO）
+// XFRM_PROTO_ESP：ESP是一种IPsec协议，用于提供加密和身份验证机制，可以保护数据的机密性和完整性。ESP被定义为50，因此该宏为XFRM_PROTO_ESP。
 #define XFRM_PROTO_ESP		50
+// XFRM_PROTO_AH：AH是另一种IPsec协议，提供数据完整性和身份验证机制。AH被定义为51，因此该宏为XFRM_PROTO_AH。
 #define XFRM_PROTO_AH		51
+// XFRM_PROTO_COMP：COMP是一种IPsec协议，它提供数据压缩机制，可以在数据传输过程中减少它们的大小。COMP被定义为108，因此该宏为XFRM_PROTO_COMP。
 #define XFRM_PROTO_COMP		108
+// XFRM_PROTO_IPIP：IPIP（IP-in-IP）是通过在IP数据包中封装它们来实现运输，它允许通过Internet连接两个相同或不同的通信节点。IPIP被定义为4，因此该宏为XFRM_PROTO_IPIP。
 #define XFRM_PROTO_IPIP		4
+// XFRM_PROTO_IPV6：IPv6是一个互联网协议标准，用于在IPv6网络中传输数据。IPv6被定义为41，因此该宏为XFRM_PROTO_IPV6。
 #define XFRM_PROTO_IPV6		41
+// XFRM_PROTO_ROUTING：ROUTING是一种协议，它允许路由器通过直接路由选择目标地址，而不是通过转发数据包。ROUTING使用网关而不是邮递员异地工作。该宏等于IPPROTO_ROUTING。
 #define XFRM_PROTO_ROUTING	IPPROTO_ROUTING
+// XFRM_PROTO_DSTOPTS：DSTOPTS是一种协议，它允许数据包在传输过程中传递特定于目的地的处理选项。该宏等于IPPROTO_DSTOPTS。
 #define XFRM_PROTO_DSTOPTS	IPPROTO_DSTOPTS
 
 #define XFRM_ALIGN4(len)	(((len) + 3) & ~3)
@@ -56,18 +63,28 @@
 
 
 /* Organization of SPD aka "XFRM rules"
+   SPD（Security Policy Database，安全策略数据库）的组织架构 “XFRM规则”
    ------------------------------------
 
    Basic objects:
-   - policy rule, struct xfrm_policy (=SPD entry)
-   - bundle of transformations, struct dst_entry == struct xfrm_dst (=SA bundle)
-   - instance of a transformer, struct xfrm_state (=SA)
-   - template to clone xfrm_state, struct xfrm_tmpl
+   基本对象:
+   - policy rule, struct xfrm_policy (=SPD entry) // 策略规则，结构体 xfrm_policy（= SPD 条目）
+   - bundle of transformations, struct dst_entry == struct xfrm_dst (=SA bundle) // 变换的绑定，结构体 dst_entry == struct xfrm_dst （= 安全关联绑定）
+   - instance of a transformer, struct xfrm_state (=SA) // 变换的实例，结构体 xfrm_state（= 安全关联）
+   - template to clone xfrm_state, struct xfrm_tmpl // 克隆 xfrm_state 的模板，结构体 xfrm_tmpl
 
-   SPD is plain linear list of xfrm_policy rules, ordered by priority.
+   SPD is plain linear list of xfrm_policy rules, ordered by priority. 
    (To be compatible with existing pfkeyv2 implementations,
    many rules with priority of 0x7fffffff are allowed to exist and
-   such rules are ordered in an unpredictable way, thanks to bsd folks.)
+   SPD 是 xfrm_policy 规则的纯线性列表，按优先级排序。（为了兼容现有的 pfkeyv2 实现，允许存在许多优先级为 0x7fffffff 的规则且这些规则是以不可预测的方式排序的，
+   感谢 BSD 的开发人员。） 
+   查找只需执行下列纯线性搜索操作，直到匹配选择器为止。
+
+	如果“操作”为“阻止”，则禁止流量，否则：
+	如果“xfrms_nr”为零，则经过的流量未经变换。否则，
+	策略条目具有多达 XFRM_MAX_DEPTH 个变换的列表，
+	其中每个模板由 xfrm_tmpl 描述。每个模板都解析为完整的 xfrm_state（请参见下文），
+	然后我们将变换的绑定打包到返回请求方的 dst_entry 中。
 
    Lookup is plain linear search until the first match with selector.
 
@@ -89,6 +106,7 @@
    Resolution of xrfm_tmpl
    -----------------------
    Template contains:
+   模板包括以下内容：
    1. ->mode		Mode: transport or tunnel
    2. ->id.proto	Protocol: AH/ESP/IPCOMP
    3. ->id.daddr	Remote tunnel endpoint, ignored for transport mode.
@@ -101,9 +119,21 @@
       Q: how to implement private sharing mode? To add struct sock* to
       flow id?
 
+->mode 模式: 传输或隧道
+->id.proto 协议: AH/ESP/IPCOMP
+->id.daddr 远程隧道终端点，在传输模式下忽略。
+Q: 允许解析安全网关吗？
+->id.spi 如果不为零，则是静态 SPI。
+->saddr 本地隧道终端点，在传输模式下忽略。
+->algos 允许算法的列表。现在是普通的位掩码。
+Q: ealgos、aalgos、calgos。这是一团糟……
+->share 共享模式。
+Q: 如何实现私有共享模式？将struct sock* 添加到流 ID 中？
+
    Having this template we search through SAD searching for entries
    with appropriate mode/proto/algo, permitted by selector.
    If no appropriate entry found, it is requested from key manager.
+   有了这个模板，我们会在 SAD 中查找适当的 mode/proto/algo 条目，并获得选择器允许的权限。如果没有找到适当的条目，则从密钥管理器请求。
 
    PROBLEMS:
    Q: How to find all the bundles referring to a physical path for
@@ -114,66 +144,115 @@
       pmtu disc will update pmtu on raw IP route and increase its genid.
       dst_check() will see this for top level and trigger resyncing
       metrics. Plus, it will be made via sk->sk_dst_cache. Solved.
+
+	Q: 如何找到所有引用物理路径的 bunlde，以便进行 PMTU 发现？似乎，dst 应包含所有父项的列表...并进入无限的锁层次结构灾难。不，这很容易，我们不会寻找它们，让它们找到我们。我们为每个 dst 添加 genid，以及指向原始 IP 路由的 genid 指针，PMTU 发现将更新原始 IP 路由上的 PMTU 并增加其 genid。dst_check() 将在顶层看到这一点，并触发重新同步指标。此外，这将通过 sk->sk_dst_cache 完成。问题解决。
  */
 
+// 用于在 Linux 内核中处理遍历（walk）由 xfrm_state 结构体组成的链表，该结构体用于表示 IPsec 的安全策略。
+// struct list_head成员用于维护链表，state 、dying、proto 和 seq 成员分别用于描述该链表节点的状态，协议类型，序列号等信息。
+// filter 成员是一个指向地址过滤器的指针，用于筛选符合条件的节点。
 struct xfrm_state_walk {
+	// 表示该数据结构的链表头
 	struct list_head	all;
+	// 用于表示安全关联对象（Security Association，SA）的状态。
 	u8			state;
+	// 用于表示该 SA 是否处于 “dying” 状态（即已被删除）。
 	u8			dying;
+	// 用于表示 SA 的协议类型
 	u8			proto;
+	// 用于表示该 SA 的序列号
 	u32			seq;
+	// 指向地址过滤器（address filter）的指针
 	struct xfrm_address_filter *filter;
 };
 
+// xfrm_state_offload: 于描述 IPsec 安全关联对象（SA）的卸载状态（offload state）
+// dev 成员指定了要卸载的网络设备，
+// offload_handle 用于标识该卸载状态，可以用于后续的卸载操作或查询。
+// num_exthdrs 指示该 SA 需要处理的扩展报头数。扩展报头是在 IP 报文中携带额外信息的报头，如扩展首部、分片首部等。flags 表示卸载状态，可能包括以下标志位：
+// - XFRM_STATE_OFFLOAD_NOPAD: 不进行填充（padding）
+// - XFRM_STATE_OFFLOAD_DEAD: 下层设备已经不支持卸载状态
+// - XFRM_STATE_OFFLOAD_WILDRECV: 接收方使用了泛接收（wildcard reception），接收了本不应该接收的 SA 包。
 struct xfrm_state_offload {
+	// 表示要卸载的网络设备
 	struct net_device	*dev;
+	// 表示卸载句柄（offload handle），用于标识该卸载状态
 	unsigned long		offload_handle;
+	// 表示 SA 需要处理的扩展报头（extended header）数
 	unsigned int		num_exthdrs;
+	// 表示卸载状态的标志位
 	u8			flags;
 };
 
 /* Full description of state of transformer. */
+// 用于描述一个 IPsec 安全关联对象（SA）的状态（state）
 struct xfrm_state {
+	// 该 SA 归属的网络命名空间
 	possible_net_t		xs_net;
 	union {
+		// 全局链表节点，用于维护所有 SA 的全局链表
 		struct hlist_node	gclist;
+		// 用于维护以目的地址为键值的哈希表，以加快根据目的地址查找 SA 的速度
 		struct hlist_node	bydst;
 	};
+	// 用于维护以源地址为键值的哈希表
 	struct hlist_node	bysrc;
+	// 用于维护以安全关联标识符（SPI）为键值的哈希表
 	struct hlist_node	byspi;
-
+	// 用于记录该 SA 的引用计数，避免出现内存泄漏
 	refcount_t		refcnt;
+	// 用于保护该 SA 的修改操作，避免出现竞态条件
 	spinlock_t		lock;
 
+	// 表示该 SA 对应的 IPsec ID
 	struct xfrm_id		id;
+	// 表示该 SA 对应的 IPsec 选择器
 	struct xfrm_selector	sel;
+	// 表示该 SA 对应的网络数据包标记
 	struct xfrm_mark	mark;
+	// 表示关联的网络接口标识符
 	u32			if_id;
+	// 表示填充长度，一般为 0
 	u32			tfcpad;
-
+	// 表示 SA 的生成标识符
 	u32			genid;
 
 	/* Key manager bits */
+	// SA 模块用于管理 SA 的数据结构
 	struct xfrm_state_walk	km;
 
 	/* Parameters of this state. */
+	// SA 的参数
 	struct {
+		// 该 SA 对应的请求标识符
 		u32		reqid;
+		//  SA 的加密模式（encryption mode）
 		u8		mode;
+		// 重放攻击检测窗口大小
 		u8		replay_window;
+		// SA 的认证算法（authentication algorithm）、加密算法（encryption algorithm）和压缩算法（compression algorithm）。
 		u8		aalgo, ealgo, calgo;
+		// SA 的标志位
 		u8		flags;
+		//  SA 对应的协议族（IPv4 或 IPv6）
 		u16		family;
+		// 源 IP 地址
 		xfrm_address_t	saddr;
+		// 头部长度
 		int		header_len;
+		// 尾部长度
 		int		trailer_len;
+		// SA 的额外标志量
 		u32		extra_flags;
+		// SA 相关的标记信息 
 		struct xfrm_mark	smark;
 	} props;
 
+	// SA 对应的生命周期
 	struct xfrm_lifetime_cfg lft;
 
 	/* Data for transformer */
+	// SA 对应的认证算法、加密算法、压缩算法、AEAD 算法、以及初始向量（Initialization Vector）。
 	struct xfrm_algo_auth	*aalg;
 	struct xfrm_algo	*ealg;
 	struct xfrm_algo	*calg;
@@ -181,18 +260,23 @@ struct xfrm_state {
 	const char		*geniv;
 
 	/* Data for encapsulator */
+	// SA 对应的封装（encapsulation）信息
 	struct xfrm_encap_tmpl	*encap;
 
 	/* Data for care-of address */
+	// SA 对应的地址
 	xfrm_address_t	*coaddr;
 
 	/* IPComp needs an IPIP tunnel for handling uncompressed packets */
+	// SA 对应的隧道（tunnel）信息
 	struct xfrm_state	*tunnel;
 
 	/* If a tunnel, number of users + 1 */
+	// 使用该 SA 的隧道数量
 	atomic_t		tunnel_users;
 
 	/* State for replay detection */
+	// SA 的重放攻击检测相关信息
 	struct xfrm_replay_state replay;
 	struct xfrm_replay_state_esn *replay_esn;
 
@@ -201,14 +285,17 @@ struct xfrm_state {
 	struct xfrm_replay_state_esn *preplay_esn;
 
 	/* The functions for replay detection. */
+	// 
 	const struct xfrm_replay *repl;
 
 	/* internal flag that only holds state for delayed aevent at the
 	 * moment
 	*/
+	// xfrm_state 内部标记，仅用于保存延迟事件相关状态
 	u32			xflags;
 
 	/* Replay detection notification settings */
+	// replay_maxage、replay_maxdiff、rtimer：表示重放攻击检测相关的最大时限和定时器
 	u32			replay_maxage;
 	u32			replay_maxdiff;
 
@@ -216,23 +303,27 @@ struct xfrm_state {
 	struct timer_list	rtimer;
 
 	/* Statistics */
+	// stats：表示 SA 的统计信息。
 	struct xfrm_stats	stats;
-
+	// curlft、mtimer、xso：表示 SA 对应的生命周期、定时器等与时间相关的信息。
 	struct xfrm_lifetime_cur curlft;
 	struct tasklet_hrtimer	mtimer;
 
 	struct xfrm_state_offload xso;
 
 	/* used to fix curlft->add_time when changing date */
+	// saved_tmo：表示上一次使用时间到当前时间的时间差。
 	long		saved_tmo;
 
 	/* Last used time */
+	// lastused：表示上一次使用该 SA 的时间。
 	time64_t		lastused;
-
+	// xfrag：表示用于重组 IP 分片后的数据包的页面片段（Page Fragment）。
 	struct page_frag xfrag;
 
 	/* Reference to data common to all the instances of this
 	 * transformer. */
+	// type、inner_mode、inner_mode_iaf、outer_mode、type_offload：表示 SA 的类型、内部模式、IAF 内部模式、外部模式、以及类型的卸载状态。
 	const struct xfrm_type	*type;
 	struct xfrm_mode	*inner_mode;
 	struct xfrm_mode	*inner_mode_iaf;
@@ -241,10 +332,12 @@ struct xfrm_state {
 	const struct xfrm_type_offload	*type_offload;
 
 	/* Security context */
+	// security：表示 SA 相关的安全上下文。
 	struct xfrm_sec_ctx	*security;
 
 	/* Private data of this transformer, format is opaque,
 	 * interpreted by xfrm_type methods. */
+	// data：表示 SA 相关的私有数据，由对应的 SA 类型方法解释。
 	void			*data;
 };
 
@@ -254,43 +347,66 @@ static inline struct net *xs_net(struct xfrm_state *x)
 }
 
 /* xflags - make enum if more show up */
+// XFRM_TIME_DEFER：表示该 SA 的时间已经延迟。
 #define XFRM_TIME_DEFER	1
+// XFRM_SOFT_EXPIRE：表示该 SA 已经过期，但还可以延迟时间。
 #define XFRM_SOFT_EXPIRE 2
 
 enum {
+	// XFRM_STATE_VOID：表示 SA 处于未初始化状态。
 	XFRM_STATE_VOID,
+	// XFRM_STATE_ACQ：表示 SA 正在获取中。
 	XFRM_STATE_ACQ,
+	// XFRM_STATE_VALID：表示 SA 是有效的。
 	XFRM_STATE_VALID,
+	// XFRM_STATE_ERROR：表示 SA 出现错误。
 	XFRM_STATE_ERROR,
+	// XFRM_STATE_EXPIRED：表示 SA 已经过期。
 	XFRM_STATE_EXPIRED,
+	// XFRM_STATE_DEAD：表示 SA 已经失效。
 	XFRM_STATE_DEAD
 };
 
 /* callback structure passed from either netlink or pfkey */
+// 表示 IPsec SA Key Management related events（km_event，IPsec SA 中的密钥管理事件）。
 struct km_event {
 	union {
+		// hard：表示 SA 强制删除的事件类型。
 		u32 hard;
+		// proto：表示协议类型相关的事件类型。
 		u32 proto;
+		// byid：表示通过 ID 相关的事件类型。
 		u32 byid;
+		// aevent：表示事件类型特定的附加事件。
 		u32 aevent;
+		// type：表示事件的类型。
 		u32 type;
 	} data;
-
+	// seq：表示事件的序列号。
 	u32	seq;
+	// portid：表示请求该事件的进程标识符。
 	u32	portid;
+	// event：表示该事件的具体类型。
 	u32	event;
+	// net：表示该事件所在的网络命名空间。
 	struct net *net;
 };
 
+//  IPsec SA 中的重放保护机制
 struct xfrm_replay {
+	// advance：用于通知 XFRM 状态，以便更新重放保护窗口并移除已完成的条目。
 	void	(*advance)(struct xfrm_state *x, __be32 net_seq);
+	// check：用于实现重放保护机制。该函数判断数据包是否为重复包，如果是则返回错误。
 	int	(*check)(struct xfrm_state *x,
 			 struct sk_buff *skb,
 			 __be32 net_seq);
+	// recheck：用于再次检查可能已经过期的重放窗口。如果该函数返回错误，则该数据包将被丢弃。
 	int	(*recheck)(struct xfrm_state *x,
 			   struct sk_buff *skb,
 			   __be32 net_seq);
+	// notify：用于通知相关 XFRM 状态。
 	void	(*notify)(struct xfrm_state *x, int event);
+	// overflow：用于处理在重放窗口溢出的情况下该如何处理数据包。如果该函数返回错误，则该数据包将被丢弃。
 	int	(*overflow)(struct xfrm_state *x, struct sk_buff *skb);
 };
 
@@ -298,33 +414,44 @@ struct xfrm_if_cb {
 	struct xfrm_if	*(*decode_session)(struct sk_buff *skb);
 };
 
+// xfrm_if_register_cb 函数将回调函数注册到系统中，以实现从 sk_buff 解码 XFRM 会话
 void xfrm_if_register_cb(const struct xfrm_if_cb *ifcb);
+// xfrm_if_unregister_cb 函数用于注销该回调函数。这两个函数的作用是在 XFRM subsystem 中注册一个回调接口，用于提供一个新的数据源解析 XFRM session 的方法，以替代原本的 xfrm_if_proto。呼叫方通過xfrm_if_cb中 decode_session 类型为sk_buff指定数据源，该数据源可以是任何不同的 XFRM 协议。
 void xfrm_if_unregister_cb(void);
 
 struct net_device;
 struct xfrm_type;
 struct xfrm_dst;
+// 用于 XFRM 策略与地址族相关信息的管理。该结构体包含了一些成员函数，用于处理不同的XFRM策略请求。
 struct xfrm_policy_afinfo {
+	// dst_ops 是网络层的目标地址相关操作结构体指针，指向可以用来处理网络层目标地址的操作结构体。
 	struct dst_ops		*dst_ops;
+	// dst_lookup 是一个用于查找网络层目标地址的函数指针，返回查询到的 dst_entry 指针。
 	struct dst_entry	*(*dst_lookup)(struct net *net,
 					       int tos, int oif,
 					       const xfrm_address_t *saddr,
 					       const xfrm_address_t *daddr,
 					       u32 mark);
+	// get_saddr 是一个用于获取本地源地址的函数指针，返回获取到的源地址。
 	int			(*get_saddr)(struct net *net, int oif,
 					     xfrm_address_t *saddr,
 					     xfrm_address_t *daddr,
 					     u32 mark);
+	// decode_session 是一个用于解码 XFRM 会话的函数指针，将会使用 flow 信息对会话进行解码。
 	void			(*decode_session)(struct sk_buff *skb,
 						  struct flowi *fl,
 						  int reverse);
+	// get_tos 是一个用于获取服务类型的函数指针，返回获取到的服务类型（ToS）。
 	int			(*get_tos)(const struct flowi *fl);
+	// init_path 是一个用于初始化 XFRM 转发路径的函数指针，返回初始化的转发路径。
 	int			(*init_path)(struct xfrm_dst *path,
 					     struct dst_entry *dst,
 					     int nfheader_len);
+	// fill_dst 是一个用于填充目标地址的函数指针，用于为 afinfo 结构体用传入的 flow 填充目标地址（用于新建策略时）。
 	int			(*fill_dst)(struct xfrm_dst *xdst,
 					    struct net_device *dev,
 					    const struct flowi *fl);
+	// blackhole_route 是一个用于设置路由策略的函数指针，可以用来将原来的路由转换成一个黑洞路由策略。
 	struct dst_entry	*(*blackhole_route)(struct net *net, struct dst_entry *orig);
 };
 
@@ -340,13 +467,21 @@ int km_query(struct xfrm_state *x, struct xfrm_tmpl *t,
 void km_state_expired(struct xfrm_state *x, int hard, u32 portid);
 int __xfrm_state_delete(struct xfrm_state *x);
 
+// 一个地址族相关的 XFRM 状态信息，用来管理不同地址族的 XFRM 状态
 struct xfrm_state_afinfo {
+	// family 表示该地址族的协议族，如 AF_INET、AF_INET6 等。
 	unsigned int			family;
+	// proto 表示该地址族协议对应的 IP 协议号，如 IPPROTO_IPV4、IPPROTO_IPV6 等。
 	unsigned int			proto;
+	// eth_proto 表示该地址族协议所对应的以太网类型，如 ETH_P_IP、ETH_P_IPV6 等。
 	__be16				eth_proto;
+	// owner 表示拥有该地址族相关信息的内核模块（若有）。
 	struct module			*owner;
+	// type_map[] 表示地址族所支持的 XFRM 类型映射表，该数组的下标对应着 IP 协议号，指向的值为该协议号对应的 XFRM 类型。
 	const struct xfrm_type		*type_map[IPPROTO_MAX];
+	// type_offload_map[] 表示地址族所支持的 XFRM 类型硬件卸载映射表，该数组的下标对应着 IP 协议号，指向的值为该协议号对应的 XFRM 类型硬件卸载的 XFRM 类型数据结构。
 	const struct xfrm_type_offload	*type_offload_map[IPPROTO_MAX];
+	// mode_map[] 表示地址族所支持的 XFRM 模式映射表，用于根据模式获取对应的结构体类型。
 	struct xfrm_mode		*mode_map[XFRM_MODE_MAX];
 
 	int			(*init_flags)(struct xfrm_state *x);
@@ -374,8 +509,12 @@ int xfrm_state_unregister_afinfo(struct xfrm_state_afinfo *afinfo);
 struct xfrm_state_afinfo *xfrm_state_get_afinfo(unsigned int family);
 struct xfrm_state_afinfo *xfrm_state_afinfo_get_rcu(unsigned int family);
 
+// xfrm_input_afinfo 的结构体，表示一个地址族中 XFRM 输入相关的信息
 struct xfrm_input_afinfo {
+	// family 表示该地址族的协议族，如 AF_INET、AF_INET6 等。
 	unsigned int		family;
+	// callback 是一个函数指针，表示处理接收到的 skb（socket buffer）数据包的回调函数。此函数会在数据包接收和处理时被调用，
+	// 首先会根据协议号来区分不同的协议，然后根据需要进行解密等相关操作，最后将处理后的数据包传递给上层进行处理。
 	int			(*callback)(struct sk_buff *skb, u8 protocol,
 					    int err);
 };
@@ -385,23 +524,30 @@ int xfrm_input_unregister_afinfo(const struct xfrm_input_afinfo *afinfo);
 
 void xfrm_flush_gc(void);
 void xfrm_state_delete_tunnel(struct xfrm_state *x);
-
+// xfrm_type 的结构体，表示一个 XFRM 协议类型
 struct xfrm_type {
+	// description 描述该 XFRM 协议类型的字符串。
 	char			*description;
+	// owner 表示拥有该 XFRM 协议类型的内核模块（若有）。
 	struct module		*owner;
+	// proto 表示此 XFRM 协议类型使用的协议号。
 	u8			proto;
+	// flags 是一个标志位，表示该协议类型的特性，如是否支持分片、重放保护、本地地址协商、远端地址协商等。
 	u8			flags;
 #define XFRM_TYPE_NON_FRAGMENT	1
 #define XFRM_TYPE_REPLAY_PROT	2
 #define XFRM_TYPE_LOCAL_COADDR	4
 #define XFRM_TYPE_REMOTE_COADDR	8
 
+	// init_state 表示初始化该 XFRM 协议类型的状态信息。
 	int			(*init_state)(struct xfrm_state *x);
+	// destructor 表示析构该 XFRM 协议类型的状态信息。
 	void			(*destructor)(struct xfrm_state *);
 	int			(*input)(struct xfrm_state *, struct sk_buff *skb);
 	int			(*output)(struct xfrm_state *, struct sk_buff *pskb);
 	int			(*reject)(struct xfrm_state *, struct sk_buff *,
 					  const struct flowi *);
+	// hdr_offset 表示计算数据包中 XFRM 协议头偏移量的回调函数。
 	int			(*hdr_offset)(struct xfrm_state *, struct sk_buff *, u8 **);
 	/* Estimate maximal size of result of transformation of a dgram */
 	u32			(*get_mtu)(struct xfrm_state *, int size);
@@ -410,18 +556,26 @@ struct xfrm_type {
 int xfrm_register_type(const struct xfrm_type *type, unsigned short family);
 int xfrm_unregister_type(const struct xfrm_type *type, unsigned short family);
 
+// 一个 XFRM 协议类型的硬件卸载相关信息
 struct xfrm_type_offload {
+	// description 描述该 XFRM 协议类型的字符串。
 	char		*description;
+	// owner 表示拥有该 XFRM 协议类型的内核模块（若有）。
 	struct module	*owner;
+	// proto 表示此 XFRM 协议类型使用的协议号。
 	u8		proto;
+	// encap 是一个函数指针，表示硬件加速的封装操作。
 	void		(*encap)(struct xfrm_state *, struct sk_buff *pskb);
+	// input_tail 是一个函数指针，表示硬件卸载的接收操作。
 	int		(*input_tail)(struct xfrm_state *x, struct sk_buff *skb);
+	// xmit 是一个函数指针，表示硬件加速的发送操作。其中 features 表示 netdev_features_t 类型的标志位，用于指定网络特性（如硬件校验和、TSO 等）。
 	int		(*xmit)(struct xfrm_state *, struct sk_buff *pskb, netdev_features_t features);
 };
 
 int xfrm_register_type_offload(const struct xfrm_type_offload *type, unsigned short family);
 int xfrm_unregister_type_offload(const struct xfrm_type_offload *type, unsigned short family);
 
+// xfrm_mode 的结构体，表示 IPsec 的模式信息
 struct xfrm_mode {
 	/*
 	 * Remove encapsulation header.
@@ -434,6 +588,7 @@ struct xfrm_mode {
 	 * header currently is.  skb->data shall point to the start of the
 	 * payload.
 	 */
+	// input2 表示解封装操作。从报文中移除封装头，并将报文的 IP 头向上移动到封装层的顶部。
 	int (*input2)(struct xfrm_state *x, struct sk_buff *skb);
 
 	/*
@@ -444,6 +599,8 @@ struct xfrm_mode {
 	 * and equivalent would set this to the tunnel encapsulation function
 	 * xfrm4_prepare_input that would in turn call input2.
 	 */
+	// input 表示实际的输入操作。在传输模式下，该函数指针与 input2 相同，无需设置；
+	// 而在隧道模式下，应将其设置为隧道封装函数（如 xfrm4_prepare_input），该函数会调用 input2。
 	int (*input)(struct xfrm_state *x, struct sk_buff *skb);
 
 	/*
@@ -457,6 +614,7 @@ struct xfrm_mode {
 	 * header.  The value of the network header will always point
 	 * to the top IP header while skb->data will point to the payload.
 	 */
+	// output2 表示封装操作。将报文封装到一个新的封装头中，并将报文 IP 头指针指向新的封装头
 	int (*output2)(struct xfrm_state *x,struct sk_buff *skb);
 
 	/*
@@ -468,21 +626,29 @@ struct xfrm_mode {
 	 * (xfrm4_prepare_output or xfrm6_prepare_output) that would in turn
 	 * call output2.
 	 */
+	// output 表示实际的输出操作。在传输模式下，该函数指针与 output2 相同，无需设置；
+	// 而在隧道模式下，应将其设置为隧道封装函数（如 xfrm4_prepare_output 或 xfrm6_prepare_output），该函数会调用 output2 。
 	int (*output)(struct xfrm_state *x, struct sk_buff *skb);
 
 	/*
 	 * Adjust pointers into the packet and do GSO segmentation.
 	 */
+	// gso_segment 用于调整报文指针并进行 GSO 分段。
 	struct sk_buff *(*gso_segment)(struct xfrm_state *x, struct sk_buff *skb, netdev_features_t features);
 
 	/*
 	 * Adjust pointers into the packet when IPsec is done at layer2.
 	 */
+	// xmit 用于调整 L2 协议头和一些其他的访问指针。
 	void (*xmit)(struct xfrm_state *x, struct sk_buff *skb);
 
+	// afinfo 表示 IPsec 支持的协议族相关信息。
 	struct xfrm_state_afinfo *afinfo;
+	// owner 表示拥有该 IPsec 模式的内核模块（若有）
 	struct module *owner;
+	// encap 表示封装方式。
 	unsigned int encap;
+	// flags 定义一个标志变量。
 	int flags;
 };
 
@@ -515,6 +681,7 @@ static inline struct xfrm_mode *xfrm_ip2inner_mode(struct xfrm_state *x, int ipp
 		return x->inner_mode_iaf;
 }
 
+// 表示一个 XFRM SA 的模板信息
 struct xfrm_tmpl {
 /* id in template is interpreted as:
  * daddr - destination of tunnel, may be zero for transport mode.
@@ -522,28 +689,36 @@ struct xfrm_tmpl {
  *	   daddr must be fixed too.
  * proto - AH/ESP/IPCOMP
  */
+	// id 表示 XFRM SA 的 ID 信息，包括协议类型、源 IP、目标 IP、安全参数索引和 SPI。
 	struct xfrm_id		id;
 
 /* Source address of tunnel. Ignored, if it is not a tunnel. */
+	// saddr 表示要使用的源 IP （如果是隧道模式的话）。
 	xfrm_address_t		saddr;
-
+	// encap_family 表示封装方式。
 	unsigned short		encap_family;
 
+	// reqid 表示 XFRM SA 的请求ID。
 	u32			reqid;
 
 /* Mode: transport, tunnel etc. */
+	// mode 表示 XFRM SA 的模式（如传输模式或隧道模式）。
 	u8			mode;
 
 /* Sharing mode: unique, this session only, this user only etc. */
+	// share 表示 XFRM SA 的共享方式（如唯一共享或与用户共享）。
 	u8			share;
 
 /* May skip this transfomration if no SA is found */
+	// optional 表示 SA 是否可选，即可以略过此转换操作。
 	u8			optional;
 
 /* Skip aalgos/ealgos/calgos checks. */
+	// allalgs 表示是否跳过算法检查，以及使用哪些算法。
 	u8			allalgs;
 
 /* Bit mask of algos allowed for acquisition */
+	// aalgos、ealgos 和 calgos 分别表示允许使用的认证算法、加密算法和压缩算法的位掩码。
 	u32			aalgos;
 	u32			ealgos;
 	u32			calgos;
@@ -569,33 +744,56 @@ struct xfrm_policy_queue {
 	unsigned long		timeout;
 };
 
+// 表示 XFRM 策略（policy）
 struct xfrm_policy {
+	// xp_net 表示该策略所属的网络命名空间（可能因为多个 network namespace 管理下的 policy 链都是在全局策略链表上）。
 	possible_net_t		xp_net;
+	// bydst 和 byidx 分别表示采用哈希表的两种策略索引方式。
 	struct hlist_node	bydst;
 	struct hlist_node	byidx;
 
 	/* This lock only affects elements except for entry. */
+	// lock 表示该策略的读写锁。
 	rwlock_t		lock;
+	// refcnt 表示该策略的引用计数。
 	refcount_t		refcnt;
+	// timer 是一个计时器，用于检测策略是否到期。
 	struct timer_list	timer;
 
+	// genid 表示策略的权限，在 policy 控制路径下被使用。
 	atomic_t		genid;
+	// priority 表示该策略的优先级。
 	u32			priority;
+	// index 表示该策略的策略索引（policy index，PI）。
 	u32			index;
+	// if_id 表示该策略所属的网络接口 ID。
 	u32			if_id;
+	// mark 表示策略的标志。
 	struct xfrm_mark	mark;
+	// selector 表示选择器，用于匹配数据包。
 	struct xfrm_selector	selector;
+	// lft 和 curlft 分别表示策略的生存周期及当前状态。
 	struct xfrm_lifetime_cfg lft;
 	struct xfrm_lifetime_cur curlft;
+	// walk 表示策略遍历信息，用于遍历匹配的策略。
 	struct xfrm_policy_walk_entry walk;
+	// polq 表示策略队列，用于在 XFRM 模块内部传递策略。
 	struct xfrm_policy_queue polq;
+	// type 表示策略的类型。
 	u8			type;
+	// action 表示对匹配的数据包要采取的操作（如加密、解密、转发等）。
 	u8			action;
+	// flags 表示策略的标志。
 	u8			flags;
+	// xfrm_nr 表示 XFRM 仿真堆栈中的元素数量。
 	u8			xfrm_nr;
+	// family 表示策略所属的地址族。
 	u16			family;
+	// security 表示策略的安全上下文。
 	struct xfrm_sec_ctx	*security;
+	// xfrm_vec 表示 XFRM SA 的模板信息。
 	struct xfrm_tmpl       	xfrm_vec[XFRM_MAX_DEPTH];
+	// rcu 表示用于 RCU 机制的垃圾收集链表的头部。
 	struct rcu_head		rcu;
 };
 
@@ -604,10 +802,15 @@ static inline struct net *xp_net(const struct xfrm_policy *xp)
 	return read_pnet(&xp->xp_net);
 }
 
+// 用于表示 XFRM 传输层管理进程(kernel-managed process)与用户进程之间通信时的地址信息
 struct xfrm_kmaddress {
+	// local 表示传输层管理进程监听的本地地址。
 	xfrm_address_t          local;
+	// remote 表示与传输层管理进程通信的用户进程地址。
 	xfrm_address_t          remote;
+	// reserved 表示预留位。
 	u32			reserved;
+	// family 表示地址族（IPv4或IPv6）。
 	u16			family;
 };
 
@@ -987,21 +1190,32 @@ static inline bool xfrm_sec_ctx_match(struct xfrm_sec_ctx *s1, struct xfrm_sec_c
  * bundles differing by session id. All the bundles grow from a parent
  * policy rule.
  */
+// 表示 XFRM 目的地（destination）
 struct xfrm_dst {
 	union {
 		struct dst_entry	dst;
 		struct rtable		rt;
 		struct rt6_info		rt6;
 	} u;
+	// route 表示路径中的路由缓存。
 	struct dst_entry *route;
+	// child 表示路径中的下一个路由表项，用于路由重定向。
 	struct dst_entry *child;
+	// path 是当前路径中的下一个地址。
 	struct dst_entry *path;
+	// pols 是一个指针数组，表示应用到该目的地的 XFRM 策略，每个元素对应一个策略类型。
 	struct xfrm_policy *pols[XFRM_POLICY_TYPE_MAX];
+	// num_pols 表示 XFRM 策略的数量。num_xfrms 表示仿真机制中的元素数量。
 	int num_pols, num_xfrms;
+	// xfrm_genid 表示目的地的 XFRM 处理随机编号。
 	u32 xfrm_genid;
+	// policy_genid 表示目的地的策略版本号。
 	u32 policy_genid;
+	// route_mtu_cached 表示缓存的路径的 MTU。
 	u32 route_mtu_cached;
+	// child_mtu_cached 表示缓存的下一个路由的 MTU。
 	u32 child_mtu_cached;
+	// route_cookie 和 path_cookie 分别表示缓存的路径和下一个地址的标识符。
 	u32 route_cookie;
 	u32 path_cookie;
 };
@@ -1046,22 +1260,33 @@ static inline void xfrm_dst_destroy(struct xfrm_dst *xdst)
 
 void xfrm_dst_ifdown(struct dst_entry *dst, struct net_device *dev);
 
+// 用于表示 XFRM 接口的参数
 struct xfrm_if_parms {
+	// name 字符数组，用来表示 XFRM 接口的名称，字符串长度最大为 IFNAMSIZ。
 	char name[IFNAMSIZ];	/* name of XFRM device */
+	// link 整数值，用来表示底层 L2 接口的索引（ifindex），该索引是在系统中唯一的，可以通过 if_nametoindex() 或 if_indextoname() 函数获取 L2 接口名或索引值。
 	int link;		/* ifindex of underlying L2 interface */
+	// if_id 无符号整数值，用来表示 XFRM 接口的唯一标识符，当启用时，需要使用唯一的标识符（以太网通常使用 MAC 地址作为标识符）。
 	u32 if_id;		/* interface identifyer */
 };
 
+// 用于表示 XFRM 接口
 struct xfrm_if {
+	// next 是一个指向下一个 struct xfrm_if 结构体的指针，用于在链表中将多个接口连接起来。这里使用了 __rcu 修饰符，表示该指针是一个 RCU（Read Copy Update）指针，用于实现读者优化的数据结构。
 	struct xfrm_if __rcu *next;	/* next interface in list */
+	// dev 是一个指向 Linux 内核中的 struct net_device 结构体的指针，表示与该接口关联的虚拟网络设备。
 	struct net_device *dev;		/* virtual device associated with interface */
+	// 表示与该接口关联的底层物理网络设备
 	struct net_device *phydev;	/* physical device */
+	// 用于表示该接口所属的网络命名空间
 	struct net *net;		/* netns for packet i/o */
+	// 表示该接口的参数。
 	struct xfrm_if_parms p;		/* interface parms */
-
+	// 表示该接口使用的通用接收处理机制（GRO - Generic Receive Offload）的数据结构。gro_cells 主要用于优化接收数据包的处理效率。
 	struct gro_cells gro_cells;
 };
 
+// 表示 XFRM 协议的 offload 信息
 struct xfrm_offload {
 	/* Output sequence number for replay protection on offloading. */
 	struct {

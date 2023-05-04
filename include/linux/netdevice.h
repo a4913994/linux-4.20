@@ -1769,16 +1769,24 @@ enum netdev_priv_flags {
  */
 
 struct net_device {
+	// name[IFNAMSIZ]：设备的名称，长度不超过 IFNAMSIZ。
 	char			name[IFNAMSIZ];
+	// hlist_node name_hlist：用于维护设备名字列表的哈希表结点
 	struct hlist_node	name_hlist;
+	// *ifalias：设备的别名信息
 	struct dev_ifalias	__rcu *ifalias;
 	/*
 	 *	I/O specific fields
 	 *	FIXME: Merge these and struct ifmap into one
 	 */
+	// mem_end、mem_start、base_addr 和 irq 等成员是硬件相关的信息，用于指定设备的地址、中断等信息。
+	// mem_end: 设备可以访问的内存区域结束地址
 	unsigned long		mem_end;
+	// mem_start: 设备可以访问的内存区域开始地址
 	unsigned long		mem_start;
+	// base_addr：设备的基地址
 	unsigned long		base_addr;
+	// irq：设备的中断请求号
 	int			irq;
 
 	/*
@@ -1786,136 +1794,210 @@ struct net_device {
 	 *	napi_list,unreg_list,close_list) but they are not
 	 *	part of the usual set specified in Space.c.
 	 */
-
+	// state 表示设备状态的标志位，用于标记设备是否已经初始化、是否正在运行、是否已经被关闭等。
 	unsigned long		state;
 
+	// dev_list、napi_list、unreg_list 和 close_list 等成员是链表，用于管理网络设备的相关信息。
+    // dev_list：设备列表中的对应节点	
 	struct list_head	dev_list;
+	// napi_list：NAPI 列表中的对应节点
 	struct list_head	napi_list;
+	// unreg_list：注销设备列表中的对应节点
 	struct list_head	unreg_list;
+	// close_list：关闭设备列表中的对应节点
 	struct list_head	close_list;
+	// ptype_all：ptype 网络协议链表中的所有协议的对应节点
 	struct list_head	ptype_all;
+	// ptype_specific：ptype 网络协议链表中对应协议的节点
 	struct list_head	ptype_specific;
 
+	// 邻居设备的链表
 	struct {
 		struct list_head upper;
 		struct list_head lower;
 	} adj_list;
-
+	// features、hw_features、wanted_features、vlan_features、hw_enc_features、mpls_features 和 gso_partial_features 等成员用于标记设备支持的网络功能。
+	// features：设备的功能特性
 	netdev_features_t	features;
+	// hw_features：设备的硬件功能特性
 	netdev_features_t	hw_features;
+	// wanted_features：设备需要的功能特性
 	netdev_features_t	wanted_features;
+	// vlan_features：设备的 VLAN 功能特性
 	netdev_features_t	vlan_features;
+	// hw_enc_features：设备的硬件加密功能特性
 	netdev_features_t	hw_enc_features;
+	// mpls_features：设备的 MPLS 功能特性
 	netdev_features_t	mpls_features;
+	// gso_partial_features：设备的 GSO 功能特性
 	netdev_features_t	gso_partial_features;
-
+	// ifindex 表示设备在系统中的索引号。
 	int			ifindex;
+	// group 表示设备所属的组别。
 	int			group;
 
+	// stats 表示网络设备的统计信息，包括接收、发送以及错误等信息。
 	struct net_device_stats	stats;
 
+	// rx_dropped、tx_dropped 和 rx_nohandler 等成员是原子变量，用于记录接收、发送和处理异常的数据包数量。
+	// rx_dropped：接收数据包出错情况下的丢包数
 	atomic_long_t		rx_dropped;
+	// tx_dropped：发送数据包出错情况下的丢包数
 	atomic_long_t		tx_dropped;
+	// rx_nohandler：无法处理类型的接收数据包数
 	atomic_long_t		rx_nohandler;
 
 	/* Stats to monitor link on/off, flapping */
+	// carrier_up_count 和 carrier_down_count 成员用于监控网络设备链接状态的变化。
+	// carrier_up_count：设备状态变为“连接”的次数
 	atomic_t		carrier_up_count;
+	// carrier_down_count：设备状态变为“断开”的次数
 	atomic_t		carrier_down_count;
 
 #ifdef CONFIG_WIRELESS_EXT
+	// *wireless_handlers：用于设置无线设备的处理函数，如果此设备不是无线设备，则为 NUL
 	const struct iw_handler_def *wireless_handlers;
+	// *wireless_data：无线设备的配置数据
 	struct iw_public_data	*wireless_data;
 #endif
+	// netdev_ops、ethtool_ops 等成员是指向相关操作的函数指针。
+	// *netdev_ops：设备相关的函数操作
 	const struct net_device_ops *netdev_ops;
+	// *ethtool_ops：设备相关的 ethtool 操作
 	const struct ethtool_ops *ethtool_ops;
 #ifdef CONFIG_NET_SWITCHDEV
+	// *switchdev_ops：switchdev 相关的函数操作
 	const struct switchdev_ops *switchdev_ops;
 #endif
 #ifdef CONFIG_NET_L3_MASTER_DEV
+	// *l3mdev_ops：l3mdev 相关的函数操作	
 	const struct l3mdev_ops	*l3mdev_ops;
 #endif
 #if IS_ENABLED(CONFIG_IPV6)
+	// *ndisc_ops：IPv6 邻居发现相关的函数操作
 	const struct ndisc_ops *ndisc_ops;
 #endif
 
 #ifdef CONFIG_XFRM_OFFLOAD
+	// *xfrmdev_ops：用于处理嵌套消息的函数操作
 	const struct xfrmdev_ops *xfrmdev_ops;
 #endif
 
 #if IS_ENABLED(CONFIG_TLS_DEVICE)
+	// *tlsdev_ops：用于设置 TLS 设备的函数操作	
 	const struct tlsdev_ops *tlsdev_ops;
 #endif
-
+	// *header_ops：设备报头处理的相关操作
 	const struct header_ops *header_ops;
 
+	// flags 表示设备的标志位，用于标记设备的类型、状态等信息。
 	unsigned int		flags;
+	// priv_flags：设备的私有标志位
 	unsigned int		priv_flags;
 
+	// gflags：设备的全局标志位
 	unsigned short		gflags;
+	// padded：未使用的空间
 	unsigned short		padded;
 
+	// operstate 表示设备的操作状态，包括 UP、DOWN 等。
 	unsigned char		operstate;
+	// link_mode：设备的连接模式
 	unsigned char		link_mode;
 
+	// if_port 和 dma 等成员是硬件相关的信息。
+	// if_port：设备的端口信息
 	unsigned char		if_port;
+	// dma：设备的 DMA 通道号
 	unsigned char		dma;
-
+	// mtu、min_mtu 和 max_mtu 成员用于指定设备的最大传输单元大小。
 	unsigned int		mtu;
 	unsigned int		min_mtu;
 	unsigned int		max_mtu;
+	// type：设备的类型
 	unsigned short		type;
+	// hard_header_len：设备报头长度
 	unsigned short		hard_header_len;
+	// min_header_len：设备报头最小长度
 	unsigned char		min_header_len;
-
+	// needed_headroom：需要的头部空间长度
 	unsigned short		needed_headroom;
+	// needed_tailroom：需要的尾部空间长度
 	unsigned short		needed_tailroom;
 
 	/* Interface address info. */
+	// perm_addr[MAX_ADDR_LEN]：设备的永久 MAC 地址
 	unsigned char		perm_addr[MAX_ADDR_LEN];
+	// addr_assign_type：设备的地址分配类型
 	unsigned char		addr_assign_type;
+	// addr_len：设备地址的长度
 	unsigned char		addr_len;
+	// neigh_priv_len：邻居设备私有数据的长度
 	unsigned short		neigh_priv_len;
+	// dev_id: 设备 ID
 	unsigned short          dev_id;
+	// dev_port: 设备端口
 	unsigned short          dev_port;
+	// addr_list_lock：设备地址列表的自旋锁
 	spinlock_t		addr_list_lock;
+	// name_assign_type：设备名字分配的类型
 	unsigned char		name_assign_type;
+	// uc_promisc：是否启用单播监听模式
 	bool			uc_promisc;
+	// uc、mc 和 dev_addrs 成员是 MAC 地址列表，用于管理设备的 unicast、multicast 和所有地址信息。
+	// netdev_hw_addr_list uc：设备的单播地址列表
 	struct netdev_hw_addr_list	uc;
+	// netdev_hw_addr_list mc：设备的组播地址列表
 	struct netdev_hw_addr_list	mc;
+	// dev_addrs：设备的地址列表
 	struct netdev_hw_addr_list	dev_addrs;
 
 #ifdef CONFIG_SYSFS
+	// *queues_kset：设备的队列 kset
 	struct kset		*queues_kset;
 #endif
+	// promiscuity：设备的混杂模式，如果值大于0,网络栈就不会丢弃那些目的地并非本地主机的数据包
 	unsigned int		promiscuity;
+	// allmulti：设备的所有组播模式
 	unsigned int		allmulti;
 
 
 	/* Protocol-specific pointers */
 
 #if IS_ENABLED(CONFIG_VLAN_8021Q)
+	// *vlan_info：VLAN 相关的信息
 	struct vlan_info __rcu	*vlan_info;
 #endif
 #if IS_ENABLED(CONFIG_NET_DSA)
+	// *dsa_ptr：DSA（Distributed Switch Architecture）相关的信息
 	struct dsa_port		*dsa_ptr;
 #endif
 #if IS_ENABLED(CONFIG_TIPC)
+	// *tipc_ptr：TIPC（Transparent Inter-Process Communication）相关的信息
 	struct tipc_bearer __rcu *tipc_ptr;
 #endif
 #if IS_ENABLED(CONFIG_IRDA) || IS_ENABLED(CONFIG_ATALK)
+	// *atalk_ptr：AppleTalk 相关的信息
 	void 			*atalk_ptr;
 #endif
+	// *ip_ptr：IPv4 相关的信息。
 	struct in_device __rcu	*ip_ptr;
 #if IS_ENABLED(CONFIG_DECNET)
+	// *dn_ptr：DECnet 相关的信息。
 	struct dn_dev __rcu     *dn_ptr;
 #endif
+	// *ip6_ptr：IPv6 相关的信息。
 	struct inet6_dev __rcu	*ip6_ptr;
 #if IS_ENABLED(CONFIG_AX25)
+	// *ax25_ptr：AX.25（Amateur Radio AX.25 Protocol）相关的信息。
 	void			*ax25_ptr;
 #endif
+	// *ieee80211_ptr：IEEE 802.11 相关的信息
 	struct wireless_dev	*ieee80211_ptr;
+	// *ieee802154_ptr：IEEE 802.15.4 相关的信息
 	struct wpan_dev		*ieee802154_ptr;
 #if IS_ENABLED(CONFIG_MPLS_ROUTING)
+	// *mpls_ptr：MPLS（Multiprotocol Label Switching）相关的信息。
 	struct mpls_dev __rcu	*mpls_ptr;
 #endif
 
@@ -1923,37 +2005,52 @@ struct net_device {
  * Cache lines mostly used on receive path (including eth_type_trans())
  */
 	/* Interface address info used in eth_type_trans() */
+	// *dev_addr：存放接收数据包的设备的 MAC 地址。
 	unsigned char		*dev_addr;
-
+	// *_rx：设备接收队列。
 	struct netdev_rx_queue	*_rx;
+	// num_rx_queues：设备接收队列的数量
 	unsigned int		num_rx_queues;
+	// real_num_rx_queues：实际的设备接收队列数量
 	unsigned int		real_num_rx_queues;
 
+	// *xdp_prog：存放 XDP（eXpress Data Path）程序的指针
 	struct bpf_prog __rcu	*xdp_prog;
+	// gro_flush_timeout：GRO（Generic Receive Offload）刷新超时时间
 	unsigned long		gro_flush_timeout;
+	// *rx_handler：指向设备接收数据包处理程序的指针
 	rx_handler_func_t __rcu	*rx_handler;
+	// *rx_handler_data：设备接收数据包处理函数的数据指针
 	void __rcu		*rx_handler_data;
 
 #ifdef CONFIG_NET_CLS_ACT
+	// *miniq_ingress：用于 ingress mini 规则的小型队列
 	struct mini_Qdisc __rcu	*miniq_ingress;
 #endif
+	// *ingress_queue：用于 ingress 队列处理的设备的队列
 	struct netdev_queue __rcu *ingress_queue;
 #ifdef CONFIG_NETFILTER_INGRESS
+	// *nf_hooks_ingress：使用 ingress 队列处理的协议栈的钩子
 	struct nf_hook_entries __rcu *nf_hooks_ingress;
 #endif
-
+	// broadcast[MAX_ADDR_LEN]：设备的广播地址
 	unsigned char		broadcast[MAX_ADDR_LEN];
 #ifdef CONFIG_RFS_ACCEL
+	// *rx_cpu_rmap：设备用于 RFS（Receive Flow Steering）加速的 CPU 映射表
 	struct cpu_rmap		*rx_cpu_rmap;
 #endif
+	// index_hlist：设备索引哈希表的节点
 	struct hlist_node	index_hlist;
 
 /*
  * Cache lines mostly used on transmit path
  */
+	// *_tx：设备的发送队
 	struct netdev_queue	*_tx ____cacheline_aligned_in_smp;
+	// num_rx_queues 和 num_tx_queues 表示设备的接收队列和发送队列的数量。
 	unsigned int		num_tx_queues;
 	unsigned int		real_num_tx_queues;
+	// qdisc 表示设备使用的队列的指针。
 	struct Qdisc		*qdisc;
 #ifdef CONFIG_NET_SCHED
 	DECLARE_HASHTABLE	(qdisc_hash, 4);
@@ -1978,6 +2075,7 @@ struct net_device {
 
 	struct list_head	link_watch_list;
 
+	// reg_state 表示设备的状态，包括 NETREG_REGISTERED、NETREG_UNREGISTERING 和 NETREG_RELEASED 等。
 	enum { NETREG_UNINITIALIZED=0,
 	       NETREG_REGISTERED,	/* completed register_netdevice */
 	       NETREG_UNREGISTERING,	/* called unregister_netdevice */
@@ -1985,14 +2083,16 @@ struct net_device {
 	       NETREG_RELEASED,		/* called free_netdev */
 	       NETREG_DUMMY,		/* dummy device for NAPI poll */
 	} reg_state:8;
-
+	// dismantle 表示设备是否正在被拆除。
 	bool dismantle;
 
+	// rtnl_link_state 表示设备的网络状态，包括 RTNL_LINK_INITIALIZED 和 RTNL_LINK_INITIALIZING 等。
 	enum {
 		RTNL_LINK_INITIALIZED,
 		RTNL_LINK_INITIALIZING,
 	} rtnl_link_state:16;
 
+	// needs_free_netdev 标志表示是否需要释放设备的内存空间。
 	bool needs_free_netdev;
 	void (*priv_destructor)(struct net_device *dev);
 
@@ -2042,6 +2142,7 @@ struct net_device {
 #if IS_ENABLED(CONFIG_CGROUP_NET_PRIO)
 	struct netprio_map __rcu *priomap;
 #endif
+	// phydev 和 sfp_bus 成员是物理层相关的信息，用于处理与物理层相关的操作。
 	struct phy_device	*phydev;
 	struct sfp_bus		*sfp_bus;
 	struct lock_class_key	*qdisc_tx_busylock;

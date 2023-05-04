@@ -46,31 +46,53 @@ struct xfrm_sec_ctx {
 
 /* Selector, used as selector both on policy rules (SPD) and SAs. */
 
+// 用于表示 XFRM 协议选择器，
 struct xfrm_selector {
+	// daddr 表示目标地址，是一个 xfrm_address_t 类型的结构体，用于存储 IPv4 或 IPv6 的地址。
 	xfrm_address_t	daddr;
+	// saddr 表示源地址，和 daddr 类似。
 	xfrm_address_t	saddr;
+	// dport 表示目标端口号，是一个 16 位大端字节序的整数。
 	__be16	dport;
+	// dport_mask 表示目标端口号使用的掩码，是一个 16 位大端字节序的整数。
 	__be16	dport_mask;
+	// sport 表示源端口号，和 dport 类似。
 	__be16	sport;
+	// sport_mask 表示源端口号使用的掩码，和 dport_mask 类似。
 	__be16	sport_mask;
+	// family 表示地址族，是一个 16 位无符号整数，通常为 AF_INET （IPv4）或 AF_INET6 （IPv6）。
 	__u16	family;
+	// prefixlen_d 表示目标地址的前缀长度，是一个 8 位无符号整数，用于表示子网掩码长度。
 	__u8	prefixlen_d;
+	// prefixlen_s 表示源地址的前缀长度，和 prefixlen_d 类似。
 	__u8	prefixlen_s;
+	// proto 表示使用的协议，是一个 8 位无符号整数，典型取值为 IPPROTO_TCP （TCP）或 IPPROTO_UDP （UDP）。
 	__u8	proto;
+	// ifindex 表示接口索引，是一个整数，用于表示该选择器所使用的网络接口。
 	int	ifindex;
+	// user 表示该选择器所属的用户 ID，是一个 32 位无符号整数。
 	__kernel_uid32_t	user;
 };
 
 #define XFRM_INF (~(__u64)0)
 
+// 用于表示 XFRM 协议的生存期配置
 struct xfrm_lifetime_cfg {
+	// soft_byte_limit 表示 soft（软件）字节限制，是一个 64 位无符号整数，当传输的字节数达到此限制时，XFRM 将发送一个警告消息。
 	__u64	soft_byte_limit;
+	// hard_byte_limit 表示 hard（硬件）字节限制，和 soft_byte_limit 类似，但达到此限制时将不再允许传输任何数据。
 	__u64	hard_byte_limit;
+	// soft_packet_limit 表示 soft（软件）数据包限制，是一个 64 位无符号整数，当传输的数据包数量达到此限制时，XFRM 将发送一个警告消息。
 	__u64	soft_packet_limit;
+	// hard_packet_limit 表示 hard（硬件）数据包限制，和 soft_packet_limit 类似，但达到此限制时将不再允许传输任何数据包。
 	__u64	hard_packet_limit;
+	// soft_add_expires_seconds 表示 soft（软件）添加超时，是一个 64 位无符号整数，用于表示添加（Acquire）模式下缓存的时间，超过此时间后将释放所占用的资源。
 	__u64	soft_add_expires_seconds;
+	// hard_add_expires_seconds 表示 hard（硬件）添加超时，和 soft_add_expires_seconds 类似，但达到此时间后将不再允许使用缓存。
 	__u64	hard_add_expires_seconds;
+	// soft_use_expires_seconds 表示 soft（软件）使用超时，是一个 64 位无符号整数，用于表示使用（Use）模式下缓存的时间，超过此时间后将释放所占用的资源。
 	__u64	soft_use_expires_seconds;
+	// hard_use_expires_seconds 表示 hard（硬件）使用超时，和 soft_use_expires_seconds 类似，但达到此时间后将不再允许使用缓存。
 	__u64	hard_use_expires_seconds;
 };
 
@@ -81,9 +103,15 @@ struct xfrm_lifetime_cur {
 	__u64	use_time;
 };
 
+// 用于表示 XFRM 协议的回放状态
 struct xfrm_replay_state {
+	// oseq 表示最老的报文序号，是一个 32 位无符号整数。
 	__u32	oseq;
+	// seq 表示当前的报文序号，和 oseq 类似，但表示最新的报文。
 	__u32	seq;
+	// bitmap 表示回放状态的位图，是一个 32 位无符号整数，用于标记当前已经接收到哪些序号的报文。
+	// 当有新的报文到来时，会先检查报文的序号是否已经在位图中，如果已经存在，则说明该报文已经被接收过，否则说明该报文是新的报文，
+	// 可以接收，并将其对应的序号标记到位图中。该位图的长度为 32，表示可以接受 32 个不同的序号。
 	__u32	bitmap;
 };
 
@@ -492,11 +520,20 @@ struct xfrm_user_mapping {
 	__be16				new_sport;
 };
 
+// 该结构体用于描述 IPsec 安全策略中的地址过滤器（address filter）
+// 该联合体表示 IP 地址，其类型可以是 IPv4 或 IPv6。
+// splen 和 dplen 成员表示源地址和目的地址的子网前缀长度，用于帮助确定该地址属于哪个子网。
+// 在地址过滤时，可以使用子网掩码和位运算来判断该地址是否在特定的子网内。
 struct xfrm_address_filter {
+	// saddr：表示源地址（source address）。
 	xfrm_address_t			saddr;
+	// daddr：表示目的地址（destination address）。
 	xfrm_address_t			daddr;
+	// family：表示地址族（address family），如 IPv4 或 IPv6。
 	__u16				family;
+	// prefixlen_s：表示源地址的前缀长度（prefix length）。
 	__u8				splen;
+	// prefixlen_d：表示目的地址的前缀长度。
 	__u8				dplen;
 };
 
