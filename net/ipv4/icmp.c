@@ -102,16 +102,24 @@
  *	Build xmit assembly blocks
  */
 
+// icmp_bxm: 用于存储与ICMP（Internet Control Message Protocol）协议相关的信息
 struct icmp_bxm {
+	// skb: 是一个指向sk_buff结构的指针，sk_buff结构表示一个网络数据包，它包含与数据包相关的元数据以及数据包内容的指针
 	struct sk_buff *skb;
+	// offset：表示ICMP数据包在skb中的偏移量
 	int offset;
+	//  data_len：表示ICMP数据包的有效数据长度
 	int data_len;
 
 	struct {
+		// icmph：存储ICMP报文头信息的结构。其中包含了ICMP类型、代码、校验和等字段
 		struct icmphdr icmph;
+		// times[3]：表示一个长度为3的32位网络字节序数组，用于存储ICMP Timestamp消息中的发送、接收和传输的时间戳
 		__be32	       times[3];
 	} data;
+	// head_len：表示整个ICMP报文头的长度（不包括ICMP数据部分）
 	int head_len;
+	// replyopts：表示与IP选项相关的数据。例如：IP记录路由选项、时间戳选项等。泛指一些与数据包（如响应数据包）相关的操作选项。
 	struct ip_options_data replyopts;
 };
 

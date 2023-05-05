@@ -1703,8 +1703,8 @@ static struct net_protocol udp_protocol = {
 static const struct net_protocol icmp_protocol = {
 	.handler =	icmp_rcv,
 	.err_handler =	icmp_err,
-	.no_policy =	1,
-	.netns_ok =	1,
+	.no_policy =	1, // 标志为1，表示无需执行Ipsec策略检查
+	.netns_ok =	1, // 标志为1，表示协议可以在网络命名空间中使用
 };
 
 static __net_init int ipv4_mib_init_net(struct net *net)

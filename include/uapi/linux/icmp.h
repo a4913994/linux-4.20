@@ -66,20 +66,33 @@
 #define ICMP_EXC_FRAGTIME	1	/* Fragment Reass time exceeded	*/
 
 
+// 定义了ICMP（Internet Control Message Protocol）报文头部格式
 struct icmphdr {
+	// type：ICMP报文类型，如请求回显（ping命令）或目的不可达
   __u8		type;
+  // 描述报文的子类型，例如目标不可达报文中的网络不可达或主机不可达
   __u8		code;
+  // 表示一种防止数据传输中产生错误的简单校验和
   __sum16	checksum;
+  // 允许根据报文类型和代码组合，在相同内存区域存储不同的数据
   union {
+	// 用于处理回显请求（ICMP类型为8）和回显应答（ICMP类型为0）的报文
 	struct {
+		// 表示回显报文的唯一标识符
 		__be16	id;
+		// 表示报文的序列号，用于跟踪和匹配请求与应答
 		__be16	sequence;
 	} echo;
+	// 用于重定向报文（ICMP类型为5）中存储重定向目标IP地址信息。
 	__be32	gateway;
+	// 用于处理“需要分片但不分片位已设置”的报文（ICMP类型为3，代码为4）
 	struct {
+		// 未使用的字段，填充为0。
 		__be16	__unused;
+		// 表示通过该路径最大允许的传输单元（MTU）
 		__be16	mtu;
 	} frag;
+	// 预留字段，用于填充不使用联合体的ICMP类型。含义根据具体类型而定。
 	__u8	reserved[4];
   } un;
 };

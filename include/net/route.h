@@ -48,25 +48,35 @@
 struct fib_nh;
 struct fib_info;
 struct uncached_list;
+// 路由表是一种用于存储路由信息的数据结构，在网络数据包的传输过程中，内核会查询路由表以决定如何将数据包从源地（源IP地址）传送到目的地（目的IP地址）
+// 该结构体声明了一个名为rtable的类型，用于在路由表中表示一个条目
 struct rtable {
+	// dst（目的地）字段包含了一个指向dst_entry类型的结构体。这个dst_entry结构体包含了通用的目的地缓存项信息。在Linux内核中，rtable继承了dst_entry结构体，以表示特定的路由表项信息。
 	struct dst_entry	dst;
-
+	// rt_genid: 每当路由表发生变化时，内核将更新此字段。它用于生成一个唯一的标识符，以便检查缓存路由表项是否仍然有效
 	int			rt_genid;
+	// rt_flags: 路由表项的标识符，用于存储特定的路由表项信息，例如增加、删除、更新路由表项，以及检查IP地址是否需要重写等。
 	unsigned int		rt_flags;
+	// rt_type: 路由类型。标识这个路由的类型，例如UNICAST（单播）、LOCAL（本地）、MULTICAST（组播）等
 	__u16			rt_type;
+	//  rt_is_input: 标记这个路由表项是否是输入路由，也就是用来接收数据包。它的值要么是0（不是输入路由），要么是1（是输入路由）
 	__u8			rt_is_input;
+	// rt_uses_gateway: 表示路由是否依赖于网关。如果依赖于网关（即通过网关访问其他网络），则该字段值为1，否则为0。
 	__u8			rt_uses_gateway;
-
+	// rt_iif: 表示输入网络接口的索引。用于区分不同的网络接口。
 	int			rt_iif;
 
 	/* Info on neighbour */
+	// rt_gateway: 网关地址。如果路由表项使用了网关，这个字段就保存了网关的IP地址。
 	__be32			rt_gateway;
 
 	/* Miscellaneous cached information */
+	// rt_mtu_locked:1, rt_pmtu:31: 这是一个位字段，用于存储一些MTU（最大传输单元）相关的信息。rt_mtu_locked表示MTU是否被锁定；rt_pmtu表示路径MTU（即沿途所有设备支持的最小MTU）。
 	u32			rt_mtu_locked:1,
 				rt_pmtu:31;
-
+	//  rt_uncached: 指向一个链表，用于存储未缓存的路由表项
 	struct list_head	rt_uncached;
+	// *rt_uncached_list: 指向一个未缓存路由表项列表的指针。未缓存的路由表项在不同场景下具有特定的性能优势
 	struct uncached_list	*rt_uncached_list;
 };
 
