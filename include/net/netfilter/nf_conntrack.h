@@ -52,6 +52,7 @@ struct nf_conntrack_net {
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
 
+// nf_conn: 用于表示网络连接跟踪。具体来说，它用于表示一个网络连接的状态，并记录其相关信息。在Linux内核中，nf_conn是与网络连接跟踪（如NAT、防火墙等）相关的重要结构。
 struct nf_conn {
 	/* Usage count in here is 1 for hash table, 1 per skb,
 	 * plus 1 for any connection(s) we are `master' for
@@ -61,47 +62,60 @@ struct nf_conn {
 	 * Helper nf_ct_put() equals nf_conntrack_put() by dec refcnt,
 	 * beware nf_ct_get() is different and don't inc refcnt.
 	 */
+	// ct_general，用于存储网络连接跟踪的相关信息，如引用计数等
 	struct nf_conntrack ct_general;
-
+	// 用于保护此结构体中的数据
 	spinlock_t	lock;
+	// 表示处理此连接的CPU编号
 	u16		cpu;
 
 #ifdef CONFIG_NF_CONNTRACK_ZONES
+	// 用于表示连接所属的区域（在CONFIG_NF_CONNTRACK_ZONES配置启用时定义）
 	struct nf_conntrack_zone zone;
 #endif
 	/* XXX should I move this to the tail ? - Y.K */
 	/* These are my tuples; original and reply */
+	// 用于存储此连接的原始和响应元组
 	struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
 
 	/* Have we seen traffic both ways yet? (bitset) */
+	// 表示连接的状态，例如是否已经看到双向流量等
 	unsigned long status;
 
 	/* jiffies32 when this ct is considered dead */
+	// 表示此连接的超时时间
 	u32 timeout;
 
+	// 表示与此连接关联的网络命名空间
 	possible_net_t ct_net;
 
 #if IS_ENABLED(CONFIG_NF_NAT)
+	// 用于在源地址NAT列表中连接此结构体（在CONFIG_NF_NAT配置启用时定义）。
 	struct hlist_node	nat_bysource;
 #endif
 	/* all members below initialized via memset */
 	u8 __nfct_init_offset[0];
 
 	/* If we were expected by an expectation, this will be it */
+	// 指向expected_by期望的连接（如果有的话）
 	struct nf_conn *master;
 
 #if defined(CONFIG_NF_CONNTRACK_MARK)
+	// 表示与连接关联的标记值（在CONFIG_NF_CONNTRACK_MARK配置启用时定义）。
 	u_int32_t mark;
 #endif
 
 #ifdef CONFIG_NF_CONNTRACK_SECMARK
+	// 表示与连接关联的安全性标志（在CONFIG_NF_CONNTRACK_SECMARK配置启用时定义）。
 	u_int32_t secmark;
 #endif
 
 	/* Extensions */
+	// 指向连接的扩展信息（如helper、timeout等）
 	struct nf_ct_ext *ext;
 
 	/* Storage reserved for other modules, must be the last member */
+	// 用于保存与连接相关的协议信息（如TCP、UDP等），并为其他模块预留存储空间。
 	union nf_conntrack_proto proto;
 };
 

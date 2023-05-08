@@ -34,22 +34,29 @@ struct nf_conntrack_man {
 };
 
 /* This contains the information to distinguish a connection. */
+// 主要作用在于保存与网络连接相关的关键信息，供内核在处理连接跟踪、网络过滤和NAT时进行快速查询和匹配。
 struct nf_conntrack_tuple {
+	// src;：此行定义了一个nf_conntrack_man类型的结构体成员src，用于存储源地址信息。
 	struct nf_conntrack_man src;
 
 	/* These are the parts of the tuple which are fixed. */
+	// dst;：此行定义了一个内嵌结构体dst，用于存储目标地址和其他固定的元组信息。
 	struct {
+		// u3;：定义了一个nf_inet_addr类型的联合变量u3，用于存储IPv4和IPv6地址。
 		union nf_inet_addr u3;
+		// u;：用于存储不同协议的信息。各协议（TCP、UDP、ICMP等）可以共享该联合体的内存
 		union {
 			/* Add other protocols here. */
+			// all;：16位大端序整数类型（可用于表示端口号等）。
 			__be16 all;
-
+			// 对于TCP、UDP、DCCP、SCTP和GRE，我们有一个名为port的__be16字段，表示端口号。
 			struct {
 				__be16 port;
 			} tcp;
 			struct {
 				__be16 port;
 			} udp;
+			// 对于ICMP，我们有一个名为type的u_int8_t字段，表示ICMP类型，和一个名为code的u_int8_t字段，表示ICMP代码。
 			struct {
 				u_int8_t type, code;
 			} icmp;
@@ -65,9 +72,11 @@ struct nf_conntrack_tuple {
 		} u;
 
 		/* The protocol. */
+		// protonum;：此行定义了一个8位无符号整数变量protonum，用于存储协议号（如TCP、UDP等）。
 		u_int8_t protonum;
 
 		/* The direction (for tuplehash) */
+		// dir;：此行定义了一个8位无符号整数变量dir，用于存储方向（例如，是否是来自源还是目标的tuplehash）。
 		u_int8_t dir;
 	} dst;
 };

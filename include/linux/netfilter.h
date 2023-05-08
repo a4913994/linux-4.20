@@ -48,27 +48,45 @@ struct nf_hook_ops;
 
 struct sock;
 
+// nf_hook_state结构是Linux内核中用于保存Netfilter钩子状态信息的结构体。
+// 它包含了关于网络数据包的处理阶段、协议族、输入/输出设备、套接字、网络命名空间等关键信息，并允许向下传递数据包的回调函数。
 struct nf_hook_state {
+	// hook: 表示Netfilter钩子点的类型，如NF_INET_PRE_ROUTING、NF_INET_LOCAL_IN等。它决定了回调函数被调用的网络数据包处理阶段
 	unsigned int hook;
+	// pf: 表示协议族（protocol family），例如PF_INET（对应IPv4）、PF_INET6（对应IPv6）等。
 	u_int8_t pf;
+	// *in: 是一个指向输入网络设备结构体的指针，表示数据包从哪个设备接收到。对于进入本地系统的数据包，这个字段有意义。
 	struct net_device *in;
+	// *out: 是一个指向输出网络设备结构体的指针，表示数据包将通过哪个设备发送出去。对于离开本地系统的数据包，这个字段有意义
 	struct net_device *out;
+	// sock *sk: 是一个指向与数据包关联的套接字（socket）结构体的指针。
 	struct sock *sk;
+	// *net: 是一个指向与数据包关联的网络命名空间（network namespace）的指针。网络命名空间是Linux内核中用于隔离进程组的网络资源，如套接字、接口等
 	struct net *net;
+	// 这是一个回调函数指针。在网络过滤框架处理完数据包并允许它继续向下传输时，这个函数被调用。传入的参数分别是网络命名空间、套接字和包含网络数据包的sk_buff结构体。
 	int (*okfn)(struct net *, struct sock *, struct sk_buff *);
 };
 
 typedef unsigned int nf_hookfn(void *priv,
 			       struct sk_buff *skb,
 			       const struct nf_hook_state *state);
+// struct nf_hook_ops结构体是用于在netfilter子系统中注册自定义数据包处理函数（钩子函数）的必要信息。
+// 钩子函数将依据指定的协议族、挂载位置和优先级在适当的时机处理网络数据包。
 struct nf_hook_ops {
 	/* User fills in from here down. */
+	// nf_hookfn是一个类型，表示一个钩子函数的原型。该钩子函数在内核定义的指定钩子点被调用。
 	nf_hookfn		*hook;
+	// 该指针指向注册钩子的网络设备。如果该钩子适用于所有网络设备，则此项应为NULL。
 	struct net_device	*dev;
+	// 钩子函数可以存储私有数据，例如表示其内部状态的结构。这些数据可以由priv字段传递给钩子函数
 	void			*priv;
+	// 这是协议族标志，例如PF_INET（IPv4）或PF_INET6（IPv6），用于指定钩子操作适用于哪种协议族的数据包
 	u_int8_t		pf;
+	// 该字段描述了钩子操作所挂载的位置。在netfilter系统中存在5个预定义的位置，分别为NF_INET_PRE_ROUTING（在路由前）、NF_INET_LOCAL_IN（在到达本地socket之前）、
+	// NF_INET_FORWARD（在转发过程中）、NF_INET_LOCAL_OUT（在离开本地socket之后）和NF_INET_POST_ROUTING（在路由后）。这些预定义的位置允许开发人员根据不同钩子点自定义不同的过滤规则。
 	unsigned int		hooknum;
 	/* Hooks are ordered in ascending priority. */
+	// 字段定义了钩子操作在给定钩子点处的执行顺序。优先级越高（数值越低），钩子函数越早被执行。这允许实现不同的过滤规则，以便处理不同的情况。
 	int			priority;
 };
 
