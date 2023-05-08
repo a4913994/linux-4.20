@@ -26,45 +26,80 @@
 #include <linux/notifier.h>
 #include <linux/refcount.h>
 
+// fib_config结构体，用于在Linux内核中表示一条转发信息基础（FIB）表的配置。
+// FIB表用于存储IP网络中的路由选择信息
 struct fib_config {
+	// fc_dst_len：目标前缀长度，用于表示目标IP地址的子网位数。
 	u8			fc_dst_len;
+	// fc_tos：Type of Service，服务类型字段，用于区分负载传输优先级。
 	u8			fc_tos;
+	// fc_protocol：用于表示添加此路由表项的路由协议（如RIP, OSPF等）。
 	u8			fc_protocol;
+	// fc_scope：路由范围，用于确定目的地址可以被认为是本地的还是远程的。
 	u8			fc_scope;
+	// fc_type：路由类型，表示路由条目的类型（如单播，广播等）。
 	u8			fc_type;
 	/* 3 bytes unused */
+	// fc_table：路由表ID，用于将路由条目添加到指定的路由表。
 	u32			fc_table;
+	// fc_dst：目标IP地址。
 	__be32			fc_dst;
+	// fc_gw：网关IP地址，数据包将通过此网关路由。
 	__be32			fc_gw;
+	// fc_oif：输出接口的索引，数据包将通过该接口发送。
 	int			fc_oif;
+	// fc_flags：路由标志位，通常用于标识路由选项，如通知路由更改等。
 	u32			fc_flags;
+	// fc_priority：路由优先级，用于决定在多条路由可用时选择哪条路由。
 	u32			fc_priority;
+	// fc_prefsrc：在源路由情况下，优选的源IP地址。
 	__be32			fc_prefsrc;
+	// fc_mx：指向路由器(metric)属性的指针。
 	struct nlattr		*fc_mx;
+	// fc_mp：指向多路径路由条目的指针。
 	struct rtnexthop	*fc_mp;
+	// fc_mx_len：fc_mx中路由器属性的长度。
 	int			fc_mx_len;
+	// fc_mp_len：多路径路由条目的长度。
 	int			fc_mp_len;
+	// fc_flow：用于分类数据流的流标签。
 	u32			fc_flow;
+	// fc_nlflags：Netlink消息的标志位。
 	u32			fc_nlflags;
+	// fc_nlinfo：关于Netlink消息的一些信息。
 	struct nl_info		fc_nlinfo;
+	// fc_encap：指向封装属性的指针。
 	struct nlattr		*fc_encap;
+	// fc_encap_type：封装类型，如MPLS，GRE等。
 	u16			fc_encap_type;
 };
 
 struct fib_info;
 struct rtable;
 
+// fib_nh_exception用于表示Linux路由子系统中的一种特殊的“下一跳”（Next Hop）
 struct fib_nh_exception {
+	// fnhe_next：这是一个指向下一个fib_nh_exception结构体的指针，用于链接形成具有相同异常信息的下一跳列表。
 	struct fib_nh_exception __rcu	*fnhe_next;
+	// fnhe_genid：用于表示这个特定下一跳异常结构的生成ID。用于区分更新过程中的旧结构和新结构。
 	int				fnhe_genid;
+	// fnhe_daddr：这是一个表示目的地址的32位无符号整数（以网络字节序表示）。这个地址会发生异常。
 	__be32				fnhe_daddr;
+	// fnhe_pmtu：这是一个表示路径MTU（Path Maximum Transmission Unit）的无符号32位整数。它表示发送到这个“下一跳”的数据包的最大大小。如果fnhe_mtu_locked为真，表示这个值是用户设置的。
 	u32				fnhe_pmtu;
+	// fnhe_mtu_locked：表示路径MTU（fnhe_pmtu字段）是否是用户锁定的。如果为真，表示由用户或管理员设置了固定的PMTU值，而不是由允许自动处理的内核。
 	bool				fnhe_mtu_locked;
+	// fnhe_gw：这是一个32位无符号整数，表示下一跳网关的地址。
 	__be32				fnhe_gw;
+	// fnhe_expires：这是一个表示下一跳异常信息过期时间的无符号长整数。从内核启动计算。
 	unsigned long			fnhe_expires;
+	// fnhe_rth_input：这是一个指向Linux路由表项（rtable）的指针，用于处理这个下一跳异常的输入方向。
 	struct rtable __rcu		*fnhe_rth_input;
+	// fnhe_rth_output：这是一个指向Linux路由表项（rtable）的指针，用于处理这个下一跳异常的输出方向。
 	struct rtable __rcu		*fnhe_rth_output;
+	// fnhe_stamp：这是一个保存下一跳异常创建时间戳的无符号长整数。
 	unsigned long			fnhe_stamp;
+	// rcu：这是一个表示RCU（Read Copy Update）机制的数据结构，用于支持内核中的并发读取和安全更新这个数据结构。
 	struct rcu_head			rcu;
 };
 
@@ -76,26 +111,45 @@ struct fnhe_hash_bucket {
 #define FNHE_HASH_SIZE		(1 << FNHE_HASH_SHIFT)
 #define FNHE_RECLAIM_DEPTH	5
 
+// fib_nh 的定义，用于表示 Linux 内核中的前向信息基本（Forwarding Information Base, FIB）的下一跳（Next Hop）数据结构
 struct fib_nh {
+	//  *nh_dev: 指向代表下一跳所在网络接口的 net_device 结构的指针。
 	struct net_device	*nh_dev;
+	// nh_hash: 用于将此 fib_nh 结构插入到散列表中的双链表节点。
 	struct hlist_node	nh_hash;
+	// *nh_parent: 指针，指向包含此下一跳的父级 fib_info 结构。
 	struct fib_info		*nh_parent;
+	// nh_flags: 下一跳的标志字段，用于存储如活动状态、死亡状态等的功能位。
 	unsigned int		nh_flags;
+	// nh_scope: 路由范围类型，表示路由的作用范围，例如全局、主机、链路等
 	unsigned char		nh_scope;
+//  如果定义了多路径路由功能
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
+	// nh_weight: 权重值，用于多路径路由中，平衡不同下一跳之间的负载。
 	int			nh_weight;
+	// nh_upper_bound: 表示 fib_nh 结构的原子引用计数器，用于多路径路由的负载平衡。
 	atomic_t		nh_upper_bound;
 #endif
+// 如果定义了路由分类标识功能
 #ifdef CONFIG_IP_ROUTE_CLASSID
+	// nh_tclassid: Traffic class identifier，用于表示路由流量的分类ID
 	__u32			nh_tclassid;
 #endif
+	// nh_oif: 网络接口索引，用于指示输出网络接口。
 	int			nh_oif;
+	// nh_gw: 下一跳网关的 IP 地址（大端字节序）。
 	__be32			nh_gw;
+	// nh_saddr: 数据包的源 IP 地址（大端字节序）。
 	__be32			nh_saddr;
+	// nh_saddr_genid: 源地址的生成标识。每次重新配置路由时，这个值就会增加，以便知道老的数据包应该发送到新地址。
 	int			nh_saddr_genid;
+	// *nh_pcpu_rth_output: 指向一个 per-CPU 路由缓存表，其中每个 CPU 都有自己的路由缓存，用于加速输出路由查找
 	struct rtable __rcu * __percpu *nh_pcpu_rth_output;
+	// *nh_rth_input: 指向输入路由缓存表的指针，用于加速输入路由查找。
 	struct rtable __rcu	*nh_rth_input;
+	// *nh_exceptions: 指向存储特殊转发行为（如 PMTU 信息）的散列表的指针。
 	struct fnhe_hash_bucket	__rcu *nh_exceptions;
+	// *nh_lwtstate: 指向轻量级隧道状态（lwtunnel_state）数据结构的指针，用于保存隧道相关信息。
 	struct lwtunnel_state	*nh_lwtstate;
 };
 
@@ -103,28 +157,46 @@ struct fib_nh {
  * This structure contains data shared by many of routes.
  */
 
+// fib_info的结构体，用于存储转发信息基（FIB）表中的路由条目。FIB表在内核中用于查找和存储网络路由信息
 struct fib_info {
+	// fib_hash: 此字段表示在基于哈希的FIB表（例如：主FIB表）中的哈希表节点。在这种数据结构中，类似的路由信息被放置在单独的哈希表项中，用于快速查找。
 	struct hlist_node	fib_hash;
+	// fib_lhash: 此字段在基于链表的FIB表（如局部FIB表）中表示链表节点，便于对链表执行插入和删除操作。
 	struct hlist_node	fib_lhash;
+	// fib_net: 结构体所属的网络命名空间。
 	struct net		*fib_net;
+	// fib_treeref: 用于计算这个路由表项被引用次数。
 	int			fib_treeref;
+	// fib_clntref: 用于计算此路由条目的客户端引用数。
 	refcount_t		fib_clntref;
+	// fib_flags: 表示特定于FIB的各个标志，如通知、重定向等。
 	unsigned int		fib_flags;
+	// fib_dead: 表示路由的状态，如活动、死亡等。
 	unsigned char		fib_dead;
+	// fib_protocol: 表示路由的协议类型，如RTPROT_KERNEL、RTPROT_BOOT等。
 	unsigned char		fib_protocol;
+	// fib_scope: 表示路由的作用范围，如全局、主机、链路等。
 	unsigned char		fib_scope;
+	// fib_type: 表示路由条目的类型（例如：unicast，multicast，anycast等）。
 	unsigned char		fib_type;
+	// fib_prefsrc: 表示路由的首选源地址。
 	__be32			fib_prefsrc;
+	// fib_tb_id: FIB表的唯一ID，又称为表ID。
 	u32			fib_tb_id;
+	// fib_priority: 表示路由的优先级。
 	u32			fib_priority;
+	// fib_metrics: 指向路由度量结构体的指针，用于存储路由的度量信息。
 	struct dst_metrics	*fib_metrics;
 #define fib_mtu fib_metrics->metrics[RTAX_MTU-1]
 #define fib_window fib_metrics->metrics[RTAX_WINDOW-1]
 #define fib_rtt fib_metrics->metrics[RTAX_RTT-1]
 #define fib_advmss fib_metrics->metrics[RTAX_ADVMSS-1]
+	// fib_nhs: 表示路由的下一跳数目。
 	int			fib_nhs;
 	struct rcu_head		rcu;
+	// fib_nh: 指向下一跳信息的指针，用于存储路由的下一跳信息。
 	struct fib_nh		fib_nh[0];
+	// fib_dev: 表示路由的输出网络接口。
 #define fib_dev		fib_nh[0].nh_dev
 };
 
@@ -134,15 +206,25 @@ struct fib_rule;
 #endif
 
 struct fib_table;
+// 用于表示一个存储在FIB（转发信息基础设施 Forwarding Information Base）表中的路由结果
 struct fib_result {
+	// prefix;: 这是一个转发的IP前缀
 	__be32		prefix;
+	// 它指定了IP地址之前对应的子网掩码位数。
 	unsigned char	prefixlen;
+	// 下一跳的数量 
 	unsigned char	nh_sel;
+	// type: 决定了处理数据包的方式
 	unsigned char	type;
+	// scope: 表示路由的作用范围，如全局、主机、链路等。
 	unsigned char	scope;
+	// 表示流量类的ID。tclassid用于分类和选择符合特定路由决策的数据包。
 	u32		tclassid;
+	// 表示与此fib_result关联的额外信息，如：度量、策略等。
 	struct fib_info *fi;
+	// 表示此路由结果所属的FIB表。Linux内核可以管理多个FIB表，以支持不同的策略或应用。
 	struct fib_table *table;
+	// 用于表示一个FIB Alias列表的头结点，FIB Alias可能包含针对给定目标的多个路由（如ECMP - 等价路径多路复用）。
 	struct hlist_head *fa_head;
 };
 
@@ -213,12 +295,19 @@ void __net_exit fib4_notifier_exit(struct net *net);
 
 void fib_notify(struct net *net, struct notifier_block *nb);
 
+// fib_table的结构体，用于Linux内核中的IP路由子系统。在内核中，Forwarding Information Base (FIB) 表用于存储路由信息。这个结构体定义了FIB表的基本属性
 struct fib_table {
+	// tb_hlist; - 这是一个哈希表节点，用于将此结构插入到哈希表中。哈希表用于加速通过ID查找fib_table的过程。
 	struct hlist_node	tb_hlist;
+	// tb_id; - 表示FIB表的ID，通常一个关联到特定网络namespace的表会有自己的ID
 	u32			tb_id;
+	// tb_num_default; - 表示存储在此FIB表中的默认路由条目的数量。默认路由是当没有明确匹配到目标IP的路由时使用的路由。
 	int			tb_num_default;
+	// rcu; - 是一个RCU (Read-Copy-Update) 的头结构，它允许在高度并发的环境下对数据结构进行无锁读。RCU 提供了grace period（优雅周期）机制，确保没有读者读取将要被删除的数据。
 	struct rcu_head		rcu;
+	// *tb_data; - FIB表中存储的实际数据的指针。这个指针指向一个长度可变的数组，用于存储路由信息。
 	unsigned long 		*tb_data;
+	// __data[0]; - 是一个存储在结构体内部的长度可变的数组，它允许动态地分配所需的存储空间。这种结构允许在分配结构体时直接分配存储实际数据所需的内存，而无需分配额外的内存空间。
 	unsigned long		__data[0];
 };
 

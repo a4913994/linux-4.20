@@ -55,13 +55,13 @@ struct rtable {
 	struct dst_entry	dst;
 	// rt_genid: 每当路由表发生变化时，内核将更新此字段。它用于生成一个唯一的标识符，以便检查缓存路由表项是否仍然有效
 	int			rt_genid;
-	// rt_flags: 路由表项的标识符，用于存储特定的路由表项信息，例如增加、删除、更新路由表项，以及检查IP地址是否需要重写等。
+	// rt_flags: 路由表项的标识符，用于存储特定的路由表项信息, 例如：RTCF_LOCAL（本地路由）、RTCF_BROADCAST（广播路由）、RTCF_MULTICAST（组播路由）等
 	unsigned int		rt_flags;
-	// rt_type: 路由类型。标识这个路由的类型，例如UNICAST（单播）、LOCAL（本地）、MULTICAST（组播）等
+	// rt_type: 路由类型, 例如：RTN_UNICAST（单播路由）、RTN_LOCAL（本地路由）、RTN_BROADCAST（广播路由）、RTN_ANYCAST（任播路由）、RTN_MULTICAST（组播路由）等
 	__u16			rt_type;
 	//  rt_is_input: 标记这个路由表项是否是输入路由，也就是用来接收数据包。它的值要么是0（不是输入路由），要么是1（是输入路由）
 	__u8			rt_is_input;
-	// rt_uses_gateway: 表示路由是否依赖于网关。如果依赖于网关（即通过网关访问其他网络），则该字段值为1，否则为0。
+	// rt_uses_gateway: 表示路由下一跳是否依赖于网关。如果依赖于网关（即通过网关访问其他网络），则该字段值为1，否则为0。
 	__u8			rt_uses_gateway;
 	// rt_iif: 表示输入网络接口的索引。用于区分不同的网络接口。
 	int			rt_iif;

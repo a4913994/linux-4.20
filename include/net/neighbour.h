@@ -41,48 +41,79 @@
 struct neighbour;
 
 enum {
+	// NEIGH_VAR_MCAST_PROBES - 多播探测次数，对于发现或确认邻居设备的可达性，发送多播探测请求的次数
 	NEIGH_VAR_MCAST_PROBES,
+	// NEIGH_VAR_UCAST_PROBES - 单播探测次数，对于发现或确认邻居设备的可达性，发送单播探测请求的次数。
 	NEIGH_VAR_UCAST_PROBES,
+	// NEIGH_VAR_APP_PROBES - 应用程序探测次数，对于应用程序触发的邻居表项探测请求的次数。
 	NEIGH_VAR_APP_PROBES,
+	// NEIGH_VAR_MCAST_REPROBES - 多播重新探测次数，当之前的多播探测请求未收到回复时，重试多播探测请求的次数。
 	NEIGH_VAR_MCAST_REPROBES,
+	// NEIGH_VAR_RETRANS_TIME - 重传时间，如果还没有收到回复，在发送下一个探测请求之间等待的时间。
 	NEIGH_VAR_RETRANS_TIME,
+	// NEIGH_VAR_BASE_REACHABLE_TIME - 基本可达时间，邻居设备被认为是可达的最大时间，超过这个时间，邻居设备将被认为是不可达的。
 	NEIGH_VAR_BASE_REACHABLE_TIME,
+	// NEIGH_VAR_DELAY_PROBE_TIME - 延迟探测时间，在发送第一个探测请求之前等待的时间。
 	NEIGH_VAR_DELAY_PROBE_TIME,
+	// NEIGH_VAR_GC_STALETIME - 垃圾回收过期时间，可用于确定邻居表项何时过期并需要清理。
 	NEIGH_VAR_GC_STALETIME,
+	// NEIGH_VAR_QUEUE_LEN_BYTES - 队列长度（以字节为单位），为邻居表项保留的暂存数据包的最大字节量。
 	NEIGH_VAR_QUEUE_LEN_BYTES,
+	// NEIGH_VAR_PROXY_QLEN - 代理队列长度，在网络设备充当代理的情况下，为邻居表项保留的暂存请求的最大数量。
 	NEIGH_VAR_PROXY_QLEN,
+	// NEIGH_VAR_ANYCAST_DELAY - 任播延迟，网络设备在处理任播请求之前等待的时间。
 	NEIGH_VAR_ANYCAST_DELAY,
+	// NEIGH_VAR_PROXY_DELAY - 代理延迟，在网络设备充当代理的情况下，在处理邻居请求之前等待的时间。
 	NEIGH_VAR_PROXY_DELAY,
+	// NEIGH_VAR_LOCKTIME - 锁定时间，在邻居表项锁定期间，不允许修改的时间。
 	NEIGH_VAR_LOCKTIME,
 #define NEIGH_VAR_DATA_MAX (NEIGH_VAR_LOCKTIME + 1)
 	/* Following are used as a second way to access one of the above */
+	// NEIGH_VAR_QUEUE_LEN - 同 NEIGH_VAR_QUEUE_LEN_BYTES。
 	NEIGH_VAR_QUEUE_LEN, /* same data as NEIGH_VAR_QUEUE_LEN_BYTES */
+	// NEIGH_VAR_RETRANS_TIME_MS - 同 NEIGH_VAR_RETRANS_TIME，但以毫秒为单位。
 	NEIGH_VAR_RETRANS_TIME_MS, /* same data as NEIGH_VAR_RETRANS_TIME */
+	// NEIGH_VAR_BASE_REACHABLE_TIME_MS - 同 NEIGH_VAR_BASE_REACHABLE_TIME，但以毫秒为单位。
 	NEIGH_VAR_BASE_REACHABLE_TIME_MS, /* same data as NEIGH_VAR_BASE_REACHABLE_TIME */
 	/* Following are used by "default" only */
+	// NEIGH_VAR_GC_INTERVAL - 垃圾回收检查间隔，用于检查邻居表项过期或清理的时间间隔。
 	NEIGH_VAR_GC_INTERVAL,
+	// NEIGH_VAR_GC_THRESH1 - 垃圾回收阈值1，邻居表项数量低于此阈值时，不进行垃圾回收。
 	NEIGH_VAR_GC_THRESH1,
+	// NEIGH_VAR_GC_THRESH2 - 垃圾回收阈值2，邻居表项数量高于此阈值时，对过期邻居表项进行垃圾回收。
 	NEIGH_VAR_GC_THRESH2,
+	// NEIGH_VAR_GC_THRESH3 - 垃圾回收阈值3，当邻居表项数量达到此阈值时，加速垃圾回收过程。
 	NEIGH_VAR_GC_THRESH3,
 	NEIGH_VAR_MAX
 };
 
+// neigh_parms: 包含了管理和设置网络邻居参数所需的数据和函数指针。这些参数通常用于网络协议，如 ARP（IPv4）和 NDP（IPv6），以便更有效地与网络设备和其他网络邻居进行通信。
 struct neigh_parms {
+	// 与网络相关的数据
 	possible_net_t net;
+	// 与网络设备相关的信息
 	struct net_device *dev;
+	// 用于存储 neigh_parms 实例的链表结构
 	struct list_head list;
+	// 在创建邻居时进行必要的初始化
 	int	(*neigh_setup)(struct neighbour *);
+	// 删除邻居时进行必要的清理工作
 	void	(*neigh_cleanup)(struct neighbour *);
+	// 该参数对应的邻居表数据结构
 	struct neigh_table *tbl;
-
+	// 存储与邻居参数相关的系统控制参数
 	void	*sysctl_table;
-
+	// 表示当前 neigh_parms 结构体是否已经废弃/不再使用
 	int dead;
 	refcount_t refcnt;
+	// 一个 RCU(list) 头数据结构，用于支持无锁同步（如读写锁定）的遍历和更新链表操作。
 	struct rcu_head rcu_head;
 
+	// 表示邻居项主动确定为可达的时间，通常由网络协议计算得出。
 	int	reachable_time;
+	// 存储邻居参数的数据（由 NEIGH_VAR_DATA_MAX 定义数组的大小）。
 	int	data[NEIGH_VAR_DATA_MAX];
+	// 声明一个位图，用来表示邻居参数数据的状态
 	DECLARE_BITMAP(data_state, NEIGH_VAR_DATA_MAX);
 };
 
@@ -132,33 +163,58 @@ struct neigh_statistics {
 
 #define NEIGH_CACHE_STAT_INC(tbl, field) this_cpu_inc((tbl)->stats->field)
 
+// neighbour: 表示Linux内核中的一个网络邻居项。网络邻居是指与本地计算机直接相连的其他设备，如路由器、交换机、服务器等。
+// 这个结构体包含了一些必要的数据成员和函数指针，以维护与网络邻居的连接状态、地址信息、操作等
 struct neighbour {
+	// next：是指向下一个邻居结构体的指针，实现邻居列表。
 	struct neighbour __rcu	*next;
+	// tbl: 指向与当前邻居项相关联的邻居表（neigh_table）的指针。
 	struct neigh_table	*tbl;
+	// parms: 指向与当前邻居项相关联的参数的指针。
 	struct neigh_parms	*parms;
+	// confirmed：上次确认邻居项有效性的时间戳（jiffies）。
 	unsigned long		confirmed;
+	// updated：上次更新邻居项时的时间戳。
 	unsigned long		updated;
+	// lock： 读写锁，用于保护邻居项的结构和状态。
 	rwlock_t		lock;
+	// refcnt：引用计数器，用于跟踪邻居项的引用数。
 	refcount_t		refcnt;
+	// arp_queue: 存储待确定邻居MAC地址的数据包队列。
 	struct sk_buff_head	arp_queue;
+	// arp_queue_len_bytes：arp_queue队列中数据包的总字节数。
 	unsigned int		arp_queue_len_bytes;
+	// timer：一个定时器，用于定时执行邻居项的任务，如重试ARP请求或刷新缓存。
 	struct timer_list	timer;
+	// used：最近一次使用邻居项的时间戳。
 	unsigned long		used;
+	// probes：用于跟踪发送的探测数据包数量的原子变量。
 	atomic_t		probes;
+	// flags：用于描述邻居项的标志位。
 	__u8			flags;
+	// nud_state：邻居项的状态，如可达、失败等。
 	__u8			nud_state;
+	// type：邻居项所属类型的标识符，如ARP表项、IPv6邻居项等。
 	__u8			type;
+	// dead：标记邻居项是否已经废弃。
 	__u8			dead;
+	// ha_lock： 序列锁，用于保护邻居的硬件地址（如MAC地址）。
 	seqlock_t		ha_lock;
+	// ha：硬件地址（如MAC地址），对齐到unsigned long类型的地址。
 	unsigned char		ha[ALIGN(MAX_ADDR_LEN, sizeof(unsigned long))];
+	// hh：hash值的缓存，用于加速硬件报头查询。
 	struct hh_cache		hh;
+	// output：一个函数指针，用于输出数据包到邻居。
 	int			(*output)(struct neighbour *, struct sk_buff *);
+	// ops：指向邻居操作的结构体指针，包括一系列操作函数，如获取邻居、删除邻居等。
 	const struct neigh_ops	*ops;
+	// rcu：一个RCU（Read-Copy-Update）结构体，用于实现读者-写者同步机制。
 	struct rcu_head		rcu;
+	// dev：指向与当前邻居项关联的网络设备（如网络接口）的指针。
 	struct net_device	*dev;
+	// primary_key: 动态长度数组，存储邻居项的键（如IPv4地址、IPv6地址等）。
 	u8			primary_key[0];
-} __randomize_layout;
-
+} __randomize_layout; // __randomize_layout是一种编译器优化策略，它为结构体数据成员生成随机布局，以提高安全性。
 struct neigh_ops {
 	int			family;
 	void			(*solicit)(struct neighbour *, struct sk_buff *);
@@ -189,35 +245,65 @@ struct neigh_hash_table {
 };
 
 
+// neigh_table in the Linux kernel. The structure is used to represent a neighbor table (also known as an ARP table for IPv4 or an NDP table for IPv6). 
+// A neighbor table is a data structure that stores information about the destination addresses and their associated network 
+// layer to link layer address mappings within the kernel
 struct neigh_table {
+	// family: This field represents the address family of the entries stored in the table. Examples of address families are AF_INET (IPv4) and AF_INET6 (IPv6).
 	int			family;
+	// entry_size: The size of each entry in the neighbor table.
 	unsigned int		entry_size;
+	// key_len: The length of the key used for the hashing function.
 	unsigned int		key_len;
+	// protocol: This field represents the protocol used by the entries in the table, such as ETH_P_IP (IPv4) or ETH_P_IPV6 (IPv6).
 	__be16			protocol;
+	//  A pointer to the hash function used for hashing the neighbor entries.
 	__u32			(*hash)(const void *pkey,
 					const struct net_device *dev,
 					__u32 *hash_rnd);
+	// A pointer to the function that checks if the keys of two entries in the neighbor table are equal.
 	bool			(*key_eq)(const struct neighbour *, const void *pkey);
+	// A pointer to the function that initializes new neighbor entries.
 	int			(*constructor)(struct neighbour *);
+	// A pointer to the function that initializes new proxy neighbor entries.
 	int			(*pconstructor)(struct pneigh_entry *);
+	// A pointer to the function that destroys proxy neighbor entries.
 	void			(*pdestructor)(struct pneigh_entry *);
+	// A pointer to the function that re-processes the packets queued for proxying.
 	void			(*proxy_redo)(struct sk_buff *skb);
+	// id: An identifier for the table (e.g., "arp_cache" for ARP table).
 	char			*id;
+	// parms: The parameters used for this neighbor table.
 	struct neigh_parms	parms;
+	// parms_list: A list head for linking neighbor parameter entries.
 	struct list_head	parms_list;
+	// gc_interval: The interval in jiffies between garbage collection runs (cleaning up stale entries).
 	int			gc_interval;
+	// gc_thresh1: The minimum number of entries in the table before garbage collection starts.
 	int			gc_thresh1;
+	// gc_thresh2: The minimum number of entries left after garbage collection.
 	int			gc_thresh2;
+	// gc_thresh3: The maximum number of entries allowed in the table.
 	int			gc_thresh3;
+	// last_flush: The timestamp of the last garbage collection run.
 	unsigned long		last_flush;
+	// gc_work: A work structure that schedules and executes garbage collection.
 	struct delayed_work	gc_work;
+	// proxy_timer: A timer for proxy neighbor entries.
 	struct timer_list 	proxy_timer;
+	// proxy_queue: A list head for storing queued packets for proxying.
 	struct sk_buff_head	proxy_queue;
+	// entries: An atomic variable representing the current number of entries in the table
 	atomic_t		entries;
+	// lock: A read-write lock protecting access and modification of the neighbor table.
 	rwlock_t		lock;
+	// last_rand: A field to store the last random value, used for timer variance.
 	unsigned long		last_rand;
+	// *stats: Per-CPU neighbor table statistics.
 	struct neigh_statistics	__percpu *stats;
+	// *nht: A pointer to the resizable neighbor hash table.
 	struct neigh_hash_table __rcu *nht;
+	// **phash_buckets: A pointer to an array of pointers to proxy neighbor entries.
 	struct pneigh_entry	**phash_buckets;
 };
 

@@ -25,47 +25,68 @@
 struct flowi_tunnel {
 	__be64			tun_id;
 };
-
+// flowi_common 结构包含一些标识一个特定流程的公共属性
 struct flowi_common {
+	// flowic_oif：输出网络接口的索引。
 	int	flowic_oif;
+	// flowic_oif：输出网络接口的索引。
 	int	flowic_iif;
+	// flowic_mark：用于标记此流的值。这个值可以用作策略路由和过滤。
 	__u32	flowic_mark;
+	// flowic_tos：流的Type of Service，定义了服务的优先级。
 	__u8	flowic_tos;
+	// flowic_scope：流的网络范围，例如全局、主机等。
 	__u8	flowic_scope;
+	// flowic_proto：流使用的协议，例如TCP、UDP等。
 	__u8	flowic_proto;
+	// flowic_flags：内核用于处理流的一组标志位。例如：
 	__u8	flowic_flags;
+// FLOWI_FLAG_ANYSRC：表示可以使用任意源地址。
 #define FLOWI_FLAG_ANYSRC		0x01
+// FLOWI_FLAG_KNOWN_NH：表示已知的下一跳。
 #define FLOWI_FLAG_KNOWN_NH		0x02
+// FLOWI_FLAG_SKIP_NH_OIF：表示跳过下一跳输出网络接口。
 #define FLOWI_FLAG_SKIP_NH_OIF		0x04
+	// flowic_secid：用于指示安全策略的安全ID。
 	__u32	flowic_secid;
+	// flowic_tun_key：流对应的隧道键，用于隧道数据报文的封装和解封装。
 	struct flowi_tunnel flowic_tun_key;
+	// flowic_uid：与此流关联的用户ID。
 	kuid_t  flowic_uid;
 };
 
+// flowi_uli 结构则是一个联合体（union），表示协议特定信息。这个结构允许多种不同类型的协议使用相同的内存空间。根据传输或其他协议的需求
 union flowi_uli {
+	// ports：用于TCP或UDP流，包含源端口（sport）和目标端口（dport）。
 	struct {
 		__be16	dport;
 		__be16	sport;
 	} ports;
 
+	// icmpt：用于ICMP流，包含ICMP类型（type）和代码（code）。
 	struct {
 		__u8	type;
 		__u8	code;
 	} icmpt;
 
+	// dnports：用于DECnet协议流，包含源端口（sport）和目标端口（dport）。
 	struct {
 		__le16	dport;
 		__le16	sport;
 	} dnports;
 
+	// spi：表示安全参数索引，用于IPSec流。
 	__be32		spi;
+	// gre_key：用于GRE隧道流，表示GRE密钥。
 	__be32		gre_key;
 
+	// mht：用于Mobility Header协议（用于IPv6移动性），表示Mobility Header类型（type）。
 	struct {
 		__u8	type;
 	} mht;
 };
 
+// flowi4 是一个用于保存与 IPv4 相关的流信息（流由源地址和目标地址组成）的数据结构
 struct flowi4 {
 	struct flowi_common	__fl_common;
 #define flowi4_oif		__fl_common.flowic_oif
@@ -80,7 +101,9 @@ struct flowi4 {
 #define flowi4_uid		__fl_common.flowic_uid
 
 	/* (saddr,daddr) must be grouped, same order as in IP header */
+	// saddr;：源 IPv4 地址，以网络字节序表示。
 	__be32			saddr;
+	// daddr：目标 IPv4 地址，以网络字节序表示。
 	__be32			daddr;
 
 	union flowi_uli		uli;

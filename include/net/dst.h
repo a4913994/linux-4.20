@@ -32,19 +32,27 @@
 
 struct sk_buff;
 
+// dst_entry，描述了一个目标条目。目标条目通常表示网络数据包在网络堆栈中的下一跳
 struct dst_entry {
+	// *dev：指向与此目标条目关联的网络设备的指针。
 	struct net_device       *dev;
+	// *ops：指向一组操作的指针，这些操作用于管理此类目标条目。通常包括创建新条目、销毁旧条目等
 	struct  dst_ops	        *ops;
+	// _metrics：用于存储此目标条目的度量或属性（例如，路径的长度或路径的腐败度）。
 	unsigned long		_metrics;
+	// expires：存储目标条目的过期时间
 	unsigned long           expires;
 #ifdef CONFIG_XFRM
+	// *xfrm (CONFIG_XFRM启用时)：指向与此目标条目关联的IPsec安全关联的指针
 	struct xfrm_state	*xfrm;
 #else
 	void			*__pad1;
 #endif
+	// 一种用于处理输入数据包的函数指针
 	int			(*input)(struct sk_buff *);
+	// 用于处理输出数据包的函数指针。
 	int			(*output)(struct net *net, struct sock *sk, struct sk_buff *skb);
-
+	// 描述此目标条目的标志集合
 	unsigned short		flags;
 #define DST_HOST		0x0001
 #define DST_NOXFRM		0x0002
@@ -63,12 +71,15 @@ struct dst_entry {
 	 * Negative values are used by the implementation layer code to
 	 * force invocation of the dst_ops->check() method.
 	 */
+	// 表示目标条目是否已经废弃，正值表示已经强制销毁；负值表示需要强制检查dst->obsolete != 0的dst_ops->check()方法。
 	short			obsolete;
 #define DST_OBSOLETE_NONE	0
 #define DST_OBSOLETE_DEAD	2
 #define DST_OBSOLETE_FORCE_CHK	-1
 #define DST_OBSOLETE_KILL	-2
+	// header_len：需要在头部预留的空间长度
 	unsigned short		header_len;	/* more space at head required */
+	// trailer_len：需要在尾部预留的空间长度
 	unsigned short		trailer_len;	/* space to reserve at tail */
 
 	/*
@@ -76,16 +87,25 @@ struct dst_entry {
 	 * input/output/ops or performance tanks badly
 	 */
 #ifdef CONFIG_64BIT
+	// __refcnt：引用计数，用于在同一时间访问此目标条目的线程计数
 	atomic_t		__refcnt;	/* 64-bit offset 64 */
 #endif
+	// __use：表示此目标条目当前的使用情况
 	int			__use;
+	// lastuse：存储目标条目最后使用的时间
 	unsigned long		lastuse;
+	// *lwtstate：指向该目标条目关联的轻量级隧道状态的指针
 	struct lwtunnel_state   *lwtstate;
+	// rcu_head：RCU头，用于实现无锁同步机制
 	struct rcu_head		rcu_head;
+	// error：记录目标条目上发生的错误
 	short			error;
+	// _pad：填充，以使结构体大小对齐
 	short			__pad;
+	// tclassid：用于记录跟踪的类别标识符
 	__u32			tclassid;
 #ifndef CONFIG_64BIT
+	// __refcnt (CONFIG_64BIT未定义时)：- 引用计数（同上），用于32位系统
 	atomic_t		__refcnt;	/* 32-bit offset 64 */
 #endif
 };

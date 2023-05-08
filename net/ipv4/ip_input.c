@@ -512,6 +512,35 @@ out:
 
 /*
  * IP receive entry point
+ 这个函数是Linux内核中的IP接收处理函数，它负责处理从网络设备接收到的IP数据包。以下是该函数各部分的详细描述：
+
+- 函数名称：ip_rcv
+- 参数：
+  - struct sk_buff *skb：指向接收到的IP数据报的缓冲区。sk_buff结构是Linux内核中用于处理网络数据包的通用结构。
+  - struct net_device *dev：指向接收到IP数据包的网络设备的描述符。
+  - struct packet_type *pt：描述接收到的数据包类型。
+  - struct net_device *orig_dev：指向原始接收设备的设备描述符。
+- 返回值：
+  - int：返回接收操作的结果。
+
+函数详细说明：
+
+1. 函数首先通过dev_net(dev)获取到接收到的IP数据包所属的网络命名空间结构(net)。
+
+2. 接着调用ip_rcv_core函数进行实际的数据包处理。ip_rcv_core函数负责对IP数据包的头部字段进行解析，并对IP数据包进行基本的合法性和完整性检查。
+
+3. 如果ip_rcv_core函数处理成功，会返回处理后的skb；否则返回NULL。
+
+4. 如果skb为NULL，表示数据包处理失败，直接返回NET_RX_DROP，表示丢弃这个数据包。
+
+5. 如果skb非NULL，表示数据包处理成功，将此数据包传递给内核的Netfilter框架。Netfilter框架负责处理防火墙、NAT等网络过滤操作。
+
+   a. NFPROTO_IPV4：指定协议类型为IPv4。
+   b. NF_INET_PRE_ROUTING：触发Netfilter框架中IPv4预路由(pre-routing)阶段的钩子函数。
+   c. net、skb、dev三个参数用于传递网络命名空间、数据包缓冲区和接收设备。
+   d. ip_rcv_finish表示在Netfilter框架处理完数据包后，调用ip_rcv_finish函数进行最后的数据包处理。
+
+通过以上描述可以看出，ip_rcv函数负责对接收到的IP数据包进行合法性和完整性检查，并将数据包传递给内核的Netfilter框架处理。在Netfilter框架处理完成后，将调用ip_rcv_finish函数进行后续操作，例如路由选择、传递给上层协议等。
  */
 int ip_rcv(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt,
 	   struct net_device *orig_dev)
