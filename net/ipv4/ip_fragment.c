@@ -109,13 +109,20 @@ static void ip4_frag_create_run(struct inet_frag_queue *q, struct sk_buff *skb)
 }
 
 /* Describe an entry in the "incomplete datagrams" queue. */
+// ipq: 用于表示IPv4分片数据报的队列
 struct ipq {
+	//q: 用于存储分片，并负责处理、排序和组合分片。它将确保所有分片按正确的顺序组合，以便重建完成的数据包
 	struct inet_frag_queue q;
-
+	// ecn: 表示“显式拥塞通知”（ECN，Explicit Congestion Notification，RFC3168）。网络设备使用ECN来通知接收端存在拥塞，以便在不丢弃数据包的情况下降低传输速度。这将有助于提高网络性能。
 	u8		ecn; /* RFC3168 support */
+	// max_df_size: 表示队列中具有“禁止分片（DF）”标志的最大分片的大小。DF标志表示发送方希望接收方不对数据包进行分片处理。
 	u16		max_df_size; /* largest frag with DF set seen */
+	// iif: 表示收到IP分片数据包的接口的索引值。用于确认终端设备接收到的分片数据包是通过哪个网络接口进入的
 	int             iif;
+	// rid: 用于表示IP分片数据包重组的一个独立的标识符。在进行分片重组的过程中，需要确保属于同一个原始数据包的所有分片具有相同的rid
 	unsigned int    rid;
+	// peer: 它用于在IP层处理IPv4或IPv6分片。这个结构包含了一些字段，用于这个结构体定义了一个名为ipq的结构，
+	// 它在Linux这是一个名为ipq的结这段代码定义了一个名为 ipq 的结构体，主要用于表示在核心网络栈中的IP片段重组队列
 	struct inet_peer *peer;
 };
 

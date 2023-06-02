@@ -323,11 +323,13 @@ struct sock_common {
   *	@sk_txtime_deadline_mode: set deadline mode for SO_TXTIME
   *	@sk_txtime_unused: unused txtime flags
   */
+ // sock: 套接字是在空间和内核空间之间传输数据的一种通信机制
 struct sock {
 	/*
 	 * Now struct inet_timewait_sock also uses sock_common, so please just
 	 * don't add nothing before this first member (__sk_common) --acme
 	 */
+	// sk_common结构体派生的成员，例如：节点、引用计数、队列映射等
 	struct sock_common	__sk_common;
 #define sk_node			__sk_common.skc_node
 #define sk_nulls_node		__sk_common.skc_nulls_node
@@ -363,9 +365,12 @@ struct sock {
 #define sk_flags		__sk_common.skc_flags
 #define sk_rxhash		__sk_common.skc_rxhash
 
+	// sk_lock: 用于护套接字的锁。
 	socket_lock_t		sk_lock;
+	// sk_drops: 原子整类型，统计丢失的数据包数量。
 	atomic_t		sk_drops;
 	int			sk_rcvlowat;
+	// sk_receive_queue 和 sk_error_queue: 用于存储收到的数据包和错误数据包的队列。
 	struct sk_buff_head	sk_error_queue;
 	struct sk_buff_head	sk_receive_queue;
 	/*
@@ -376,6 +381,7 @@ struct sock {
 	 * on 64bit arches, not because its logically part of
 	 * backlog.
 	 */
+	// sk_backlog：表示待处理的已排队连接请求。其中包括rmem_alloc（表示已分配的接收缓存大小）、len（表示backlog队列的长度）、head（指向队列的头部）、tail（指向队列的尾部）。
 	struct {
 		atomic_t	rmem_alloc;
 		int		len;
@@ -383,60 +389,90 @@ struct sock {
 		struct sk_buff	*tail;
 	} sk_backlog;
 #define sk_rmem_alloc sk_backlog.rmem_alloc
-
+	// sk_forward_alloc：表示分配给该套接字的内存量，包括已发送和收缓冲区。
 	int			sk_forward_alloc;
 #ifdef CONFIG_NET_RX_BUSY_POLL
 	unsigned int		sk_ll_usec;
 	/* ===== mostly read cache line ===== */
 	unsigned int		sk_napi_id;
 #endif
+	// skvbuf：套接字接收缓冲区的大小.
 	int			sk_rcvbuf;
-
+	// *sk_filter：套接字BPF过滤的指针用于对接收到的数据包进行过滤。
 	struct sk_filter __rcu	*sk_filter;
 	union {
+		// *sk_wq：指向socket等待队列的针，用于处理进程等待的I/O操作
 		struct socket_wq __rcu	*sk_wq;
 		struct socket_wq	*sk_wq_raw;
 	};
 #ifdef CONFIG_XFRM
 	struct xfrm_policy __rcu *sk_policy[2];
 #endif
+	//  *sk_rx_dst：接收路由节点指针，用于解码接收到的数据包
 	struct dst_entry	*sk_rx_dst;
+	//  *sk_dst_cache：指向套接字当前目的地路由项的缓存
 	struct dst_entry __rcu	*sk_dst_cache;
+	// sk_omem_alloc：表示已分配至套接字输出缓冲区的内存量。
 	atomic_t		sk_omem_alloc;
+	// sk_sndbuf：套接字发送缓冲区的大小
 	int			sk_sndbuf;
 
 	/* ===== cache line for TX ===== */
+	// sk_wmem_queued：已排队的写入内存量，包括已发送和发送缓冲区
 	int			sk_wmem_queued;
+	// 表示已分配给套接字发送缓冲区的内存
 	refcount_t		sk_wmem_alloc;
+	// 用于记录套接字定时器状态的标志
 	unsigned long		sk_tsq_flags;
 	union {
+		//  *sk_send_head`：指向当前发送队列部的数据包
 		struct sk_buff	*sk_send_head;
 		struct rb_root	tcp_rtx_queue;
 	};
+	// sk_write_queue：套接字的发送队列，用于存储尚未发送的数据包
 	struct sk_buff_head	sk_write_queue;
+	// sk_peek_off: 表示在peek模式下进程预读取数据时的偏移量
 	__s32			sk_peek_off;
+	// sk_write_pending：表示正在发送或等待发送的数据包数量
 	int			sk_write_pending;
+	// sk_dst_pending_confirm：表示需要确认目标路由是否发生了变化。
 	__u32			sk_dst_pending_confirm;
+	// sk_pacing_status：用于表示该套接字的流控状态
 	u32			sk_pacing_status; /* see enum sk_pacing */
+	// sk_sndtimeo：表示套接字发送超时的时间
 	long			sk_sndtimeo;
+	// sk_timer：用于套接字操作的定时器
 	struct timer_list	sk_timer;
+	// sk_priority：套接字的优先级
 	__u32			sk_priority;
+	// sk_mark：用于表示该套接字的防火墙标记
 	__u32			sk_mark;
+	// sk_pacing_rate: 表示socket的流控速率（以每秒字节为单位）
 	unsigned long		sk_pacing_rate; /* bytes per second */
+	// k_max_pacing_rate: 表示socket的最大流速控制速率。
 	unsigned long		sk_max_pacing_rate;
+	// sk_frag: 表示socket中用于网络数据包分片的内存页面断
 	struct page_frag	sk_frag;
+	// sk_route_caps: 描述了与socket相关的网络设备的特性能力
 	netdev_features_t	sk_route_caps;
+	// sk_route_nocaps: 描述了与socket相关的网络设备的特性无能力
 	netdev_features_t	sk_route_nocaps;
+	// sk_route_forced_caps: 描述了强制与socket相关的网络设备的特性能力。
 	netdev_features_t	sk_route_forced_caps;
+	//  sk_gso_type: 表示socket的通用分段卸载（GSO）类型。
 	int			sk_gso_type;
+	// 表示socket的最大通用分段卸载（GSO）大小
 	unsigned int		sk_gso_max_size;
+	// 描述内分配标志及行为的类型
 	gfp_t			sk_allocation;
+	// 表示与相关的传输层哈希值
 	__u32			sk_txhash;
 
 	/*
 	 * Because of non atomicity rules, all
 	 * changes are protected by socket lock.
 	 */
+	// sk_flags_offset: 表示协和套接字类型相关的位偏移值
 	unsigned int		__sk_flags_offset[0];
 #ifdef __BIG_ENDIAN_BITFIELD
 #define SK_FL_PROTO_SHIFT  16
@@ -460,50 +496,79 @@ struct sock {
 				sk_protocol  : 8,
 				sk_type      : 16;
 #define SK_PROTOCOL_MAX U8_MAX
+	// sk_gso_max_segs：表示最大分段数目
 	u16			sk_gso_max_segs;
+	// 表示关于套接字数据包发送速度调整的设置
 	u8			sk_pacing_shift;
+	// 表示套接字关闭（close）的等待时间，用于完成数据传输
 	unsigned long	        sk_lingertime;
+	// 表示与此套接字关联的协议操作
 	struct proto		*sk_prot_creator;
+	// sk_callback_lock：读写锁，用于保护套接字回调的数据结构
 	rwlock_t		sk_callback_lock;
+	// sk_err 和 sk_err_soft：表示与套接字的错误代码。（一个表示硬错误，另一个表示软错误）
 	int			sk_err,
 				sk_err_soft;
+	// sk_ack_backlog 和 sk_max_ack_backlog：表示对连接请求的排数量和最大排队数量。
 	u32			sk_ack_backlog;
 	u32			sk_max_ack_backlog;
+	// sk_uid：表示创建套接字的用户身份。
 	kuid_t			sk_uid;
+	// sk_peer_pid：表示与套接字关联的对等端进程ID。
 	struct pid		*sk_peer_pid;
+	// sk_peer_cred：表示与套接字关联的对等端凭证。
 	const struct cred	*sk_peer_cred;
+	// sk_rcvtimeo：表示接收超时时间（以jiffies为单位)
 	long			sk_rcvtimeo;
+	// sk_stamp：表示套接字上一个活动时间的时间戳
 	ktime_t			sk_stamp;
+	// sk_tsflags：表示用于时间戳的标记
 	u16			sk_tsflags;
+	// sk_shutdown：表示套接字关闭方向的状态
 	u8			sk_shutdown;
+	// sk_tskey：表示时间戳密钥
 	u32			sk_tskey;
+	// sk_zckey：表示零拷贝（zero-copy）传输的原子计数
 	atomic_t		sk_zckey;
-
+	// sk_clockid:表示套接字的时钟ID
 	u8			sk_clockid;
+	// sk_txtime_deadline_mode（1位），sk_txtime_report_errors（1位）和sk_txtime_unused（6位）分别表示套接字错误报告以及分组发送时限模式和未使用位。
 	u8			sk_txtime_deadline_mode : 1,
 				sk_txtime_report_errors : 1,
 				sk_txtime_unused : 6;
-
+	// sk_socket：向该套接字所关联的socket结构体的指针
 	struct socket		*sk_socket;
+	// sk_user_data：一个指针，可用于存储与套接字关联的用户数据
 	void			*sk_user_data;
 #ifdef CONFIG_SECURITY
 	void			*sk_security;
 #endif
+	// sk_cgrp_data;: 这个成员表示与套接字关联的cgroup
 	struct sock_cgroup_data	sk_cgrp_data;
+	// *sk_mem;: 与接字关的内存控制组（memory group）的指针
 	struct mem_cgroup	*sk_memcg;
+	// 当字的状态发生改变时，将调用这个函数指针
 	void			(*sk_state_change)(struct sock *sk);
+	// 当套接字接收到数据时，将调用这个函数指针
 	void			(*sk_data_ready)(struct sock *sk);
+	// 当套接字的可用写入空间发生变化时，将调用这个函数指针
 	void			(*sk_write_space)(struct sock *sk);
+	// 当套接字发生错误时将调用这个函数指针
 	void			(*sk_error_report)(struct sock *sk);
+	// 用于处理接收到的数据包的后备接收
 	int			(*sk_backlog_rcv)(struct sock *sk,
 						  struct sk_buff *skb);
 #ifdef CONFIG_SOCK_VALIDATE_XMIT
+	// 这个回调函数用在发送之前验证_buff数据包
 	struct sk_buff*		(*sk_validate_xmit_skb)(struct sock *sk,
 							struct net_device *dev,
 							struct sk_buff *skb);
 #endif
+	// 用于在接字销毁时执行的回调函数
 	void                    (*sk_destruct)(struct sock *sk);
+	// 保存一个指向套接字reuseport控块的指针
 	struct sock_reuseport __rcu	*sk_reuseport_cb;
+	// 用于支持RCU（Read-Copy-Update）的头结构
 	struct rcu_head		sk_rcu;
 };
 

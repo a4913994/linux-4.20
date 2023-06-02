@@ -46,12 +46,21 @@ struct linger {
  */
  
 struct msghdr {
+	// *msg_name：指向套接字地址结的指针。此结构包含有关消息源/目的地的地址, 
+	// 例如，在IPv4中，这将是一个 struct sockaddr_in类型的指针，在IPv6中是一个struct sockaddr_in6类型的指针。
 	void		*msg_name;	/* ptr to socket address structure */
+	// msg_namelen：套接字地址结构的大小，用于指示 msg_name` 指向的内存区域的大小
 	int		msg_namelen;	/* size of socket address structure */
+	// msg_iter：表示I/O向量迭代器，用于描述要发送或接收的数据的缓冲区的位置和大小。
 	struct iov_iter	msg_iter;	/* data */
+	//  *msg_control：指向辅助数据的指针。辅助数据（或称为控制信息）可用于传输特定协议的加信息，套接字级选项或与特定数据报关联的
 	void		*msg_control;	/* ancillary data */
+	// msg_controllen：辅助数据缓冲区的长度，用于指示 msg_control 指向的内存区域的大小。
 	__kernel_size_t	msg_controllen;	/* ancillary data buffer length */
+	// msg_flags：接收到的消息标志。这些标志提供了有关消息传输过程中的附加信息，例如是否截断了数据或控制信息等。
 	unsigned int	msg_flags;	/* flags on received message */
+	// *msg_iocb：指向异步I/O控制块（kiocb）的指针用于支持异步请求。
+	// kiocb结构存储了与某个具体请求相关的信息，如请求的数据、状态等
 	struct kiocb	*msg_iocb;	/* ptr to iocb for async requests */
 };
  

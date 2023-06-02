@@ -2450,9 +2450,13 @@ static inline struct sk_buff *call_gro_receive_sk(gro_receive_sk_t cb,
 	return cb(sk, head, skb);
 }
 
+//  packet_type: 用于表示Linux内核中网络包的类型
 struct packet_type {
+	// type: 表示网络包的以太网类型，如 IPv4、IPv6 等
 	__be16			type;	/* This is really htons(ether_type). */
+	// ignore_outgoing: 表示是否忽略出站数据包的布尔值。
 	bool			ignore_outgoing;
+	// *dev: 指向与此 packet_type 关联的特定网卡设备的指针。通过这个字段，内核可以将特定类型的传入或传出数据包与网卡绑定。设为 NULL 时，则表示通配，即该数据包可在任何网卡上进行处理。
 	struct net_device	*dev;	/* NULL is wildcarded here	     */
 	int			(*func) (struct sk_buff *,
 					 struct net_device *,

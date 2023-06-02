@@ -107,17 +107,22 @@ struct socket_wq {
  *  @sk: internal networking protocol agnostic socket representation
  *  @wq: wait queue for several uses
  */
+// socket结构体用于表示一个网络套接字，用于描述网络通信的端点
 struct socket {
+	// state: 表示套接字的状态，如SS_UNCONNECTED(未连接)，SS_CONNECTED(已连接)等。
 	socket_state		state;
-
+	// type: 套接字类型，如SOCK_STREAM(面向连接的套接字，如TCP)和SOCK_DGRAM(无连接的套接字，如UDP)。
 	short			type;
-
+	// flags: 用于表示套接字的一些属性，例如，SOCK_NONBLOCK(非阻塞)，SOCK_CLOEXEC(在exec()`调用后关闭)等。
 	unsigned long		flags;
 
+	// *wq: 用于描述和管理套接字相关的等待队列。等待队列用于在套接字上进行同步操作，例如等待连接或者数据可用。
 	struct socket_wq	*wq;
-
+	// *file: 指向一个file结构体的指针。file结构体将套接字与文件系统挂钩，这样可以将套接字用作常规文件操作，例如使用read()和write()系统调用。
 	struct file		*file;
+	// *sk: sock`结构体是套接字的核心表示，包含了与协议相关的信息，例如TCP/UDP的内部、缓冲区和地址。
 	struct sock		*sk;
+	//  *ops; 该结构体包含了一组函数针，这些函数定义了与协议相关的操作。例如，accept()、bind()、connect()`等操作。
 	const struct proto_ops	*ops;
 };
 

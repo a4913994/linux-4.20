@@ -22,21 +22,37 @@
 #include <asm/byteorder.h>
 #include <linux/socket.h>
 
+// tcphdr的结构体，它用于表示TCP协议的头部数据。
+// TCP（传输控制协议，Transmission Control Protocol）是一种面向连接、可靠的、基于字节流的网络通信协议，它在应用层和网络层之间提供数据传输服务
 struct tcphdr {
+	// source: 表示源端口号，用于指定发送方的端口信息。
 	__be16	source;
+	// dest: 表示目标端口号，用于指定接收方的端口信息
 	__be16	dest;
+	// seq: 表示序列号，用于表示TCP数据流中当前数据段的字节顺序
 	__be32	seq;
+	// ack_seq: 表示确认序列号，用于确认接收到的所有数据直至此序列号都已成功接收
 	__be32	ack_seq;
 #if defined(__LITTLE_ENDIAN_BITFIELD)
+	// res1:4: 4位保留字段，没有具体的使用目的。
 	__u16	res1:4,
+		// doff:4: 4位数据偏移字段，表示TCP头部用的32位字的数目。
 		doff:4,
+		// fin:1: FIN标志位，表示报文传输结束。
 		fin:1,
+		// syn:1: SYN标志位，表示建立新的连接请求。
 		syn:1,
+		// rst:: RST标志位，表示重置连接。
 		rst:1,
+		// rst:: RST标志位，表示重置连接。
 		psh:1,
+		// ack:1: ACK标志位，表示接收方已收到所有数据直至指定确认序列号的数据。
 		ack:1,
+		// urg:1: URG标志位，表明紧急指针字段（urg_ptr）是有效的。
 		urg:1,
+		// ece:1: ECE标志位，表示发送方接收到了显式拥塞通知（N-E）。
 		ece:1,
+		// cwr:1: CWR标志位，表示拥塞窗口已减小（窗口缩减已完成）。
 		cwr:1;
 #elif defined(__BIG_ENDIAN_BITFIELD)
 	__u16	doff:4,
@@ -52,8 +68,11 @@ struct tcphdr {
 #else
 #error	"Adjust your <asm/byteorder.h> defines"
 #endif	
+	// window: 表示窗口大小，用于指定接收方允许发送方发送的数据量
 	__be16	window;
+	// check: 表示校验和，用于检验TCP报文是否传输正确。
 	__sum16	check;
+	// urg_ptr: 表示紧急指针字段，当URG标志位为1时，指示紧急数据TCP数据段中的位置
 	__be16	urg_ptr;
 };
 
